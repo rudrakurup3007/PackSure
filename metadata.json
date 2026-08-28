@@ -1,0 +1,6 @@
+{
+  "name": "PackSure AI",
+  "description": "AI-powered packaged commodity compliance inspection scanner and evidence dashboard.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
