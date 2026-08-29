@@ -1,0 +1,261 @@
+{
+  "rules_version": "1.0-final",
+  "note": "Rule IDs are FROZEN as of this version. Do not renumber without a version bump and team-wide notice.",
+  "confidence_threshold": {
+    "review_below": 0.6,
+    "note": "If OCR confidence for a field's evidence is below this, result = REVIEW regardless of validation outcome (unless evidence is fully absent, in which case FAIL)."
+  },
+  "date_role_policy": {
+    "field_name": "date_role",
+    "allowed_values": ["manufacturing", "best_before_use_by", "unclear"],
+    "rule": "A detected date is not sufficient evidence of the declaration type. The extraction must identify date_role. An unresolved date role (null or 'unclear') MUST result in REVIEW - it must never be inferred or defaulted to 'manufacturing' or 'best_before_use_by'.",
+    "applies_to_rules": ["PCR-R05", "PCR-R08"]
+  },
+  "rules": [
+    {
+      "rule_id": "PCR-R01",
+      "field": "manufacturer",
+      "requirement": "Name and address of the manufacturer, or packer, or importer must be declared.",
+      "legal_reference": "Legal Metrology (Packaged Commodities) Rules, 2011, Rule 6(1) - manufacturer/packer/importer declaration. Sub-clause letter not independently verified against the current consolidated text - VERIFY AGAINST CURRENT PRIMARY SOURCE.",
+      "applicability": {
+        "type": "package_scope",
+        "condition": "applies_to_all_retail_packages"
+      },
+      "evidence_required": ["value", "raw_text", "confidence", "bbox", "context"],
+      "validation": {
+        "type": "presence",
+        "required": true
+      },
+      "outputs": {
+        "pass": "Manufacturer/packer/importer details detected.",
+        "fail": "Manufacturer/packer/importer details not found.",
+        "review": "Manufacturer/packer/importer text detected but confidence too low to confirm.",
+        "na": "Not applicable."
+      }
+    },
+    {
+      "rule_id": "PCR-R02",
+      "field": "common_name",
+      "requirement": "Common or generic name of the commodity must be declared.",
+      "legal_reference": "Rule 6(1) - generic/common name declaration. Sub-clause letter not independently verified - VERIFY AGAINST CURRENT PRIMARY SOURCE.",
+      "applicability": {
+        "type": "package_scope",
+        "condition": "applies_to_all_retail_packages"
+      },
+      "evidence_required": ["value", "raw_text", "confidence", "bbox", "context"],
+      "validation": {
+        "type": "presence",
+        "required": true
+      },
+      "outputs": {
+        "pass": "Commodity name detected.",
+        "fail": "Commodity name not detected.",
+        "review": "Text present but could not reliably identify the commodity name (e.g. only brand/slogan visible).",
+        "na": "Not applicable."
+      }
+    },
+    {
+      "rule_id": "PCR-R03",
+      "field": "net_quantity",
+      "requirement": "Net quantity must be declared with a standard unit.",
+      "legal_reference": "Rule 6(1) - net quantity declaration. Sub-clause letter not independently verified - VERIFY AGAINST CURRENT PRIMARY SOURCE.",
+      "applicability": {
+        "type": "package_scope",
+        "condition": "applies_to_all_retail_packages"
+      },
+      "evidence_required": ["value", "unit", "unit_status", "raw_text", "confidence", "bbox", "context"],
+      "validation": {
+        "type": "value_and_unit",
+        "required": true,
+        "unit_in": ["g", "kg", "ml", "l", "mg", "cm", "m"],
+        "note": "unit_status distinguishes a confirmed-absent unit (FAIL - the declaration is genuinely incomplete) from an ambiguous/unclear unit (REVIEW - extraction couldn't tell). Do not default an unclear case to FAIL."
+      },
+      "outputs": {
+        "pass": "Net quantity and valid unit detected.",
+        "fail": "Net quantity value found but no unit was declared on the package.",
+        "review": "Net quantity detected but unit is ambiguous or extraction confidence is low.",
+        "na": "Not applicable."
+      }
+    },
+    {
+      "rule_id": "PCR-R04",
+      "field": "mrp",
+      "requirement": "Maximum Retail Price (inclusive of all taxes) must be declared.",
+      "legal_reference": "Rule 6(1) - MRP/retail sale price declaration. Sub-clause letter not independently verified - VERIFY AGAINST CURRENT PRIMARY SOURCE.",
+      "applicability": {
+        "type": "package_scope",
+        "condition": "applies_to_all_retail_packages"
+      },
+      "evidence_required": ["value", "currency", "raw_text", "confidence", "bbox", "context", "context_confirmed"],
+      "validation": {
+        "type": "presence_with_context",
+        "required": true,
+        "note": "context_confirmed must be explicitly true if multiple price-like values are detected on the package. A price cannot be assumed to be MRP just because it was found."
+      },
+      "outputs": {
+        "pass": "Valid MRP declaration detected.",
+        "fail": "No MRP declaration found.",
+        "review": "A price was detected but MRP context is uncertain (e.g. multiple prices present, none confirmed as MRP).",
+        "na": "Not applicable."
+      }
+    },
+    {
+      "rule_id": "PCR-R05",
+      "field": "manufacturing_date",
+      "requirement": "Month and year of manufacture (or import/packing, as applicable) must be declared.",
+      "legal_reference": "Rule 6(1)(d) - date of manufacture declaration, subject to carve-outs for food articles (Prevention of Food Adulteration Act / FSSAI), seeds, cosmetics, and spare parts under warranty per the 2023 amendment. VERIFY AGAINST CURRENT PRIMARY SOURCE for exact current carve-out list.",
+      "applicability": {
+        "type": "package_scope",
+        "condition": "applies_to_all_retail_packages"
+      },
+      "evidence_required": ["value", "date_role", "raw_text", "confidence", "bbox", "context"],
+      "validation": {
+        "type": "presence_with_role",
+        "required": true,
+        "expected_role": "manufacturing",
+        "note": "evidence.date_role must be explicitly 'manufacturing'. If date_role is null or 'unclear', this MUST return REVIEW, never PASS or an inferred classification."
+      },
+      "outputs": {
+        "pass": "Manufacturing/packing date detected and confirmed as manufacturing date.",
+        "fail": "No manufacturing/packing date found.",
+        "review": "A date was detected but its role (manufacturing vs. best-before/use-by) could not be reliably established.",
+        "na": "Not applicable."
+      }
+    },
+    {
+      "rule_id": "PCR-R06",
+      "field": "consumer_care",
+      "requirement": "Name, address, telephone/email of the person or office to be contacted for consumer complaints must be declared.",
+      "legal_reference": "Rule 6(1) - consumer care declaration. Sub-clause letter not independently verified - VERIFY AGAINST CURRENT PRIMARY SOURCE.",
+      "applicability": {
+        "type": "package_scope",
+        "condition": "applies_to_all_retail_packages"
+      },
+      "evidence_required": ["value", "raw_text", "confidence", "bbox", "context"],
+      "validation": {
+        "type": "presence",
+        "required": true
+      },
+      "outputs": {
+        "pass": "Consumer care details detected.",
+        "fail": "Consumer care details not found.",
+        "review": "Partial consumer care information found (e.g. only a name, no contact method).",
+        "na": "Not applicable."
+      }
+    },
+    {
+      "rule_id": "PCR-R07",
+      "field": "country_of_origin",
+      "requirement": "Country of origin must be declared for imported products.",
+      "legal_reference": "Rule 6(1) - country of origin declaration for imported packages. Sub-clause letter not independently verified - VERIFY AGAINST CURRENT PRIMARY SOURCE.",
+      "applicability": {
+        "type": "conditional",
+        "condition": "product.is_imported == true",
+        "exception_ref": "see exceptions.json -> country_of_origin_not_imported, import_status_unknown"
+      },
+      "evidence_required": ["value", "raw_text", "confidence", "bbox", "context"],
+      "validation": {
+        "type": "presence",
+        "required": true
+      },
+      "outputs": {
+        "pass": "Country of origin detected for imported product.",
+        "fail": "Product flagged as imported but no country of origin declared.",
+        "review": "Import status or country-of-origin evidence is ambiguous.",
+        "na": "Product not identified as imported; requirement does not apply."
+      }
+    },
+    {
+      "rule_id": "PCR-R08",
+      "field": "expiry_date",
+      "requirement": "For commodities that may become unfit for consumption over time, the 'best before' or 'use by' date, month, and year must be declared.",
+      "legal_reference": "Rule 6(1)(da) - best before/use by declaration for applicable commodities. Confirmed to exist in the Rule 6 text via secondary/legal-database source (indiankanoon.org); recommend VERIFY AGAINST CURRENT PRIMARY SOURCE (Dept. of Consumer Affairs) before final submission.",
+      "applicability": {
+        "type": "conditional",
+        "condition": "product.may_expire == true",
+        "exception_ref": "see exceptions.json -> expiry_date_not_perishable, expiry_status_unknown"
+      },
+      "evidence_required": ["value", "date_role", "raw_text", "confidence", "bbox", "context"],
+      "validation": {
+        "type": "presence_with_role",
+        "required": true,
+        "expected_role": "best_before_use_by",
+        "note": "evidence.date_role must be explicitly 'best_before_use_by'. If date_role is null or 'unclear', this MUST return REVIEW, never PASS or an inferred classification."
+      },
+      "outputs": {
+        "pass": "Best before/use by date detected and confirmed.",
+        "fail": "Product may expire but no best before/use by date found.",
+        "review": "A date was detected but its role (manufacturing vs. best-before/use-by) could not be reliably established.",
+        "na": "Product not identified as perishable/time-sensitive; requirement does not apply."
+      }
+    },
+    {
+      "rule_id": "PCR-R09",
+      "field": "unit_sale_price",
+      "requirement": "The unit sale price (price per gram/kg, per cm/m, per ml/l, or per number/unit as applicable) must be declared, unless an exemption applies.",
+      "legal_reference": "Rule 6(11) (as substituted by the 2022 Amendment Rules, effective 1 Oct 2022) - unit sale price declaration. Confirmed exemptions found via secondary sources: (1) not required where retail sale price equals unit sale price [2nd proviso, Rule 6(11)], (2) not required on wholesale packages [Rule 2(r)], (3) not required for Combination/Group/Multi-Piece Packages [2023 amendment], (4) not required on e-commerce listings [Rule 6(10)]. VERIFY AGAINST CURRENT PRIMARY SOURCE before final submission - these exemptions are drawn from legal-commentary sources, not the bare gazetted text.",
+      "applicability": {
+        "type": "conditional",
+        "condition": "product.requires_unit_sale_price == true",
+        "exception_ref": "see exceptions.json -> unit_sale_price_not_applicable, unit_sale_price_status_unknown",
+        "note": "Applicability depends on package/commodity type (single retail package sold by weight/length/volume/number, not wholesale/combination/group/multi-piece, and RSP != USP). This is a compound condition - MVP should treat it as a single upstream boolean (product.requires_unit_sale_price) rather than re-deriving all sub-conditions in the rule engine, unless Person 1/3 want to encode the sub-conditions separately."
+      },
+      "evidence_required": ["value", "unit", "currency", "raw_text", "confidence", "bbox", "context"],
+      "validation": {
+        "type": "presence",
+        "required": true
+      },
+      "outputs": {
+        "pass": "Unit sale price detected.",
+        "fail": "Unit sale price is applicable but not found.",
+        "review": "Applicability or evidence for unit sale price is ambiguous.",
+        "na": "Unit sale price does not apply to this package (e.g. RSP equals USP, wholesale/combination/group/multi-piece package, or e-commerce listing)."
+      }
+    },
+    {
+      "rule_id": "PCR-R10",
+      "field": "dimensions",
+      "requirement": "Where relevant to the commodity category, dimensions (e.g. length, area) must be declared.",
+      "legal_reference": "NOT INDEPENDENTLY VERIFIED. Some commodity categories may have dimension-based declaration requirements under Schedule provisions of the LMPC Rules, but this has not been confirmed against a primary source for this project. VERIFY AGAINST CURRENT PRIMARY SOURCE before treating this as a confirmed general requirement - treat as commodity-category-specific, not universal.",
+      "applicability": {
+        "type": "conditional",
+        "condition": "product.dimensions_relevant == true",
+        "exception_ref": "see exceptions.json -> dimensions_not_relevant, dimensions_status_unknown"
+      },
+      "evidence_required": ["value", "unit", "raw_text", "confidence", "bbox", "context"],
+      "validation": {
+        "type": "presence",
+        "required": true
+      },
+      "outputs": {
+        "pass": "Dimensions detected for a commodity category where they are relevant.",
+        "fail": "Dimensions are relevant for this commodity but not found.",
+        "review": "Relevance of dimensions to this commodity category is unclear.",
+        "na": "Dimensions are not relevant to this commodity category."
+      }
+    },
+    {
+      "rule_id": "PCR-R11",
+      "field": "principal_display_panel_colocation",
+      "requirement": "Certain declarations (notably MRP and net quantity) are expected to appear together on the Principal Display Panel, presented legibly, rather than scattered across the package.",
+      "legal_reference": "Rule 7 - Principal Display Panel provisions, and Rule 8 - manner/size of declaration. Real requirement, confirmed to exist, but exact operative text, current wording, and precise co-location/legibility thresholds are NOT independently verified. VERIFY AGAINST CURRENT PRIMARY SOURCE. Do not invent a universal rule such as 'MRP must always be at position X' - no such specific claim is made or implemented here.",
+      "status": "EXPERIMENTAL - NOT SCORED. Excluded from the compliance score denominator regardless of applicability or outcome.",
+      "applicability": {
+        "type": "package_scope",
+        "condition": "applies_to_all_retail_packages"
+      },
+      "evidence_required": ["mrp.bbox", "net_quantity.bbox", "nearby_text", "context_confirmed", "image_geometry", "image_index"],
+      "validation": {
+        "type": "colocation_check",
+        "required": false,
+        "note": "Verifying true panel co-location and legibility from bounding boxes/OCR confidence alone is unreliable without panel-boundary detection, which is out of scope for this MVP. Implement only if time permits. If the system cannot reliably determine the relevant panel/placement, return REVIEW, never FAIL - this rule must never contribute to a hard FAIL or to the compliance score."
+      },
+      "outputs": {
+        "pass": "MRP and net quantity appear co-located and legible, consistent with Principal Display Panel expectations. Informational only.",
+        "fail": "Not used - this rule cannot produce a scored FAIL; see validation.required and status.",
+        "review": "Placement/legibility could not be reliably confirmed from available evidence. Informational only.",
+        "na": "Not evaluated for this scan."
+      }
+    }
+  ]
+}

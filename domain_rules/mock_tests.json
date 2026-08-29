@@ -1,0 +1,179 @@
+{
+  "tests_version": "1.0-final",
+  "tests": [
+    {
+      "id": "T01",
+      "description": "Manufacturing date clearly identified (role confirmed)",
+      "input": { "field": "manufacturing_date", "value": "06/2026", "date_role": "manufacturing", "confidence": 0.95 },
+      "expected_status": "PASS",
+      "rule_id": "PCR-R05"
+    },
+    {
+      "id": "T02",
+      "description": "Best Before clearly identified (role confirmed)",
+      "input": { "field": "expiry_date", "value": "06/2027", "date_role": "best_before_use_by", "confidence": 0.95, "product_may_expire": true },
+      "expected_status": "PASS",
+      "rule_id": "PCR-R08"
+    },
+    {
+      "id": "T03",
+      "description": "Manufacturing + Best Before both present and correctly classified (two independent evaluations, not one merged field)",
+      "input_a": { "field": "manufacturing_date", "value": "06/2026", "date_role": "manufacturing", "confidence": 0.9 },
+      "input_b": { "field": "expiry_date", "value": "06/2027", "date_role": "best_before_use_by", "confidence": 0.9, "product_may_expire": true },
+      "expected_status_a": "PASS",
+      "expected_status_b": "PASS",
+      "rule_id": "PCR-R05 and PCR-R08",
+      "note": "Confirms the two date fields are evaluated independently and don't overwrite/confuse each other when both are present on the same package."
+    },
+    {
+      "id": "T04",
+      "description": "Date present but role unclear - MUST NOT be guessed as manufacturing or best-before",
+      "input": { "field": "manufacturing_date", "value": "06/2027", "date_role": "unclear", "confidence": 0.9 },
+      "expected_status": "REVIEW",
+      "rule_id": "PCR-R05",
+      "note": "This is the exact scenario the teammate flagged: a high-confidence date with no reliable contextual indication of its role must never be inferred - it must REVIEW."
+    },
+    {
+      "id": "T04b",
+      "description": "Same unclear-role scenario evaluated as a potential expiry date - also REVIEW, not guessed",
+      "input": { "field": "expiry_date", "value": "06/2027", "date_role": "unclear", "confidence": 0.9, "product_may_expire": true },
+      "expected_status": "REVIEW",
+      "rule_id": "PCR-R08"
+    },
+    {
+      "id": "T05",
+      "description": "Best Before applicable but missing",
+      "input": { "field": "expiry_date", "value": null, "product_may_expire": true },
+      "expected_status": "FAIL",
+      "rule_id": "PCR-R08"
+    },
+    {
+      "id": "T06",
+      "description": "Best Before applicability unknown (perishability not classified)",
+      "input": { "field": "expiry_date", "value": null, "product_may_expire": null },
+      "expected_status": "REVIEW",
+      "rule_id": "PCR-R08"
+    },
+    {
+      "id": "T07",
+      "description": "Non-perishable product - Best Before not applicable",
+      "input": { "field": "expiry_date", "value": null, "product_may_expire": false },
+      "expected_status": "N/A",
+      "rule_id": "PCR-R08"
+    },
+    {
+      "id": "T08",
+      "description": "Imported product, country of origin declared",
+      "input": { "field": "country_of_origin", "value": "Japan", "confidence": 0.98, "product_is_imported": true },
+      "expected_status": "PASS",
+      "rule_id": "PCR-R07"
+    },
+    {
+      "id": "T09",
+      "description": "Domestic product - Country of Origin not applicable",
+      "input": { "field": "country_of_origin", "value": null, "product_is_imported": false },
+      "expected_status": "N/A",
+      "rule_id": "PCR-R07"
+    },
+    {
+      "id": "T10",
+      "description": "Import status unknown",
+      "input": { "field": "country_of_origin", "value": null, "product_is_imported": null },
+      "expected_status": "REVIEW",
+      "rule_id": "PCR-R07"
+    },
+    {
+      "id": "T11",
+      "description": "MRP context confirmed",
+      "input": { "field": "mrp", "value": "120", "confidence": 0.98, "context_confirmed": true },
+      "expected_status": "PASS",
+      "rule_id": "PCR-R04"
+    },
+    {
+      "id": "T12",
+      "description": "MRP context ambiguous (multiple price-like values, none confirmed)",
+      "input": { "field": "mrp", "value": "120", "confidence": 0.97, "context_confirmed": false },
+      "expected_status": "REVIEW",
+      "rule_id": "PCR-R04"
+    },
+    {
+      "id": "T13",
+      "description": "Low-confidence date (role confirmed, but confidence below threshold)",
+      "input": { "field": "manufacturing_date", "value": "07/2026", "date_role": "manufacturing", "confidence": 0.31 },
+      "expected_status": "REVIEW",
+      "rule_id": "PCR-R05"
+    },
+    {
+      "id": "T14",
+      "description": "Net quantity without unit - unit confirmed absent (not ambiguous)",
+      "input": { "field": "net_quantity", "value": "500", "unit": null, "unit_status": "confirmed_absent", "confidence": 0.95 },
+      "expected_status": "FAIL",
+      "rule_id": "PCR-R03"
+    },
+    {
+      "id": "T14b",
+      "description": "Net quantity, unit extraction ambiguous (not confirmed absent) - REVIEW not FAIL",
+      "input": { "field": "net_quantity", "value": "500", "unit": null, "unit_status": "ambiguous", "confidence": 0.9 },
+      "expected_status": "REVIEW",
+      "rule_id": "PCR-R03",
+      "note": "Distinguishes 'we looked and there's genuinely no unit' (T14, FAIL) from 'we can't tell' (T14b, REVIEW)."
+    },
+    {
+      "id": "T15",
+      "description": "Unit sale price applicable and present",
+      "input": { "field": "unit_sale_price", "value": "18.50", "unit": "per 100g", "confidence": 0.92, "product_requires_unit_sale_price": true },
+      "expected_status": "PASS",
+      "rule_id": "PCR-R09"
+    },
+    {
+      "id": "T16",
+      "description": "Unit sale price applicable but missing",
+      "input": { "field": "unit_sale_price", "value": null, "product_requires_unit_sale_price": true },
+      "expected_status": "FAIL",
+      "rule_id": "PCR-R09"
+    },
+    {
+      "id": "T17",
+      "description": "Unit sale price not applicable (e.g. RSP equals USP, or wholesale/combination/group/multi-piece package)",
+      "input": { "field": "unit_sale_price", "value": null, "product_requires_unit_sale_price": false },
+      "expected_status": "N/A",
+      "rule_id": "PCR-R09"
+    },
+    {
+      "id": "T18",
+      "description": "Dimensions relevant and present",
+      "input": { "field": "dimensions", "value": "30x20x10", "unit": "cm", "confidence": 0.9, "product_dimensions_relevant": true },
+      "expected_status": "PASS",
+      "rule_id": "PCR-R10"
+    },
+    {
+      "id": "T19",
+      "description": "Dimensions not relevant to this commodity category",
+      "input": { "field": "dimensions", "value": null, "product_dimensions_relevant": false },
+      "expected_status": "N/A",
+      "rule_id": "PCR-R10"
+    },
+    {
+      "id": "T19b",
+      "description": "Dimensions relevance unknown",
+      "input": { "field": "dimensions", "value": null, "product_dimensions_relevant": null },
+      "expected_status": "REVIEW",
+      "rule_id": "PCR-R10"
+    },
+    {
+      "id": "T20",
+      "description": "Placement/co-location cannot be determined - REVIEW, informational only, never scored",
+      "input": { "field": "principal_display_panel_colocation", "value": null },
+      "expected_status": "REVIEW",
+      "rule_id": "PCR-R11",
+      "note": "scored must be False for this result regardless of status - confirm calculate_score() excludes it."
+    },
+    {
+      "id": "T21",
+      "description": "All applicable declarations present across all scored rules - composite/manual check",
+      "input": { "note": "Run all 9 scored rules (R01-R10, excluding experimental R11) against a fully compliant package image." },
+      "expected_status": "PASS for every applicable rule; high overall score",
+      "rule_id": "ALL"
+    }
+  ]
+}

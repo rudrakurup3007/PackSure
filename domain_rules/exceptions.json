@@ -1,0 +1,79 @@
+{
+  "exceptions_version": "1.0-final",
+  "note": "Exceptions determine when a rule that would normally apply gets overridden to N/A, or when unresolved applicability/evidence must produce REVIEW instead of a guess. Checked AFTER applicability, BEFORE evidence check. Unresolved date_role is handled separately in rules.json validation logic (type: presence_with_role), not here - it is an evidence-quality issue, not an applicability exception.",
+  "exceptions": [
+    {
+      "id": "country_of_origin_not_imported",
+      "applies_to_rule": "PCR-R07",
+      "condition": "product.is_imported == false",
+      "effect": "result = N/A",
+      "reasoning": "Country of origin is only a mandatory declaration for imported packages. Do not fail a domestic product for missing it."
+    },
+    {
+      "id": "import_status_unknown",
+      "applies_to_rule": "PCR-R07",
+      "condition": "product.is_imported == unknown",
+      "effect": "result = REVIEW",
+      "reasoning": "If we cannot confirm whether the product is imported, do not guess. An unresolved applicability question must not silently become N/A (which would hide a possible violation) or FAIL (which could wrongly penalize a domestic product).",
+      "status": "PROPOSED - confirm with Person 1 whether MVP even attempts import-status detection, or whether it's always 'unknown' for MVP and this rule just always REVIEWs."
+    },
+    {
+      "id": "expiry_date_not_perishable",
+      "applies_to_rule": "PCR-R08",
+      "condition": "product.may_expire == false",
+      "effect": "result = N/A",
+      "reasoning": "Best before/use by is only required for commodities that may become unfit for consumption over time (Rule 6(1)(da)). Non-perishable items (e.g. steel utensils, stationery) should not be failed for lacking this."
+    },
+    {
+      "id": "expiry_status_unknown",
+      "applies_to_rule": "PCR-R08",
+      "condition": "product.may_expire == unknown",
+      "effect": "result = REVIEW",
+      "reasoning": "If perishability isn't confirmed, treat it as unresolved applicability, not N/A or FAIL.",
+      "status": "PROPOSED - same open question as import_status_unknown: does MVP classify product category/perishability at all, or is it always 'unknown'?"
+    },
+    {
+      "id": "unit_sale_price_not_applicable",
+      "applies_to_rule": "PCR-R09",
+      "condition": "product.requires_unit_sale_price == false",
+      "effect": "result = N/A",
+      "reasoning": "Unit sale price does not apply where RSP equals USP, on wholesale packages, on combination/group/multi-piece packages, or on e-commerce listings (see rule's legal_reference for sourcing on each exemption)."
+    },
+    {
+      "id": "unit_sale_price_status_unknown",
+      "applies_to_rule": "PCR-R09",
+      "condition": "product.requires_unit_sale_price == unknown",
+      "effect": "result = REVIEW",
+      "reasoning": "Applicability of unit sale price depends on package type and pricing, which may not always be determinable from the image alone. Do not guess.",
+      "status": "PROPOSED - confirm with Person 1/3 whether package-type classification (wholesale/combination/group/multi-piece) is in scope for MVP."
+    },
+    {
+      "id": "dimensions_not_relevant",
+      "applies_to_rule": "PCR-R10",
+      "condition": "product.dimensions_relevant == false",
+      "effect": "result = N/A",
+      "reasoning": "Dimensions are only meaningful for specific commodity categories, not all packaged goods."
+    },
+    {
+      "id": "dimensions_status_unknown",
+      "applies_to_rule": "PCR-R10",
+      "condition": "product.dimensions_relevant == unknown",
+      "effect": "result = REVIEW",
+      "reasoning": "If commodity category/relevance isn't confirmed, treat as unresolved rather than guessing N/A or FAIL.",
+      "status": "PROPOSED - confirm with Person 1/3 whether commodity-category classification needed for this is in scope for MVP."
+    },
+    {
+      "id": "placement_unavailable",
+      "applies_to_rule": "PCR-R11",
+      "condition": "colocation cannot be reliably determined from available bbox/image_geometry evidence",
+      "effect": "result = REVIEW (informational only - PCR-R11 is never scored regardless of outcome)",
+      "reasoning": "PCR-R11 is experimental. When the system can't reliably assess placement, it must say so (REVIEW) rather than defaulting to PASS or FAIL. This never affects the compliance score."
+    }
+  ],
+  "not_implemented_this_mvp": [
+    "Multi-component/group package special handling beyond the unit-sale-price exemption already captured above (Rule 6(5)-adjacent area)",
+    "QR/electronic declaration as a substitute for printed declarations",
+    "Full sub-condition derivation for unit_sale_price applicability (wholesale vs combination vs group vs multi-piece vs RSP==USP) - MVP treats this as one upstream boolean; see PCR-R09 applicability note in rules.json",
+    "Legibility/font-size measurement against Rule 8 thresholds - MVP only collects evidence (bbox, OCR confidence, image quality) per PCR-R11; it does NOT compute an automatic legal FAIL from pixel/font size, since the exact legal measurement methodology has not been verified"
+  ]
+}
