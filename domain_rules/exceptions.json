@@ -1,5 +1,5 @@
 {
-  "exceptions_version": "1.0-final",
+  "exceptions_version": "1.0",
   "note": "Exceptions determine when a rule that would normally apply gets overridden to N/A, or when unresolved applicability/evidence must produce REVIEW instead of a guess. Checked AFTER applicability, BEFORE evidence check. Unresolved date_role is handled separately in rules.json validation logic (type: presence_with_role), not here - it is an evidence-quality issue, not an applicability exception.",
   "exceptions": [
     {
@@ -15,7 +15,7 @@
       "condition": "product.is_imported == unknown",
       "effect": "result = REVIEW",
       "reasoning": "If we cannot confirm whether the product is imported, do not guess. An unresolved applicability question must not silently become N/A (which would hide a possible violation) or FAIL (which could wrongly penalize a domestic product).",
-      "status": "PROPOSED - confirm with Person 1 whether MVP even attempts import-status detection, or whether it's always 'unknown' for MVP and this rule just always REVIEWs."
+      "status": "MVP INTEGRATION DECISION (not a legal ambiguity) - the legal requirement itself (country of origin for imports) is settled; what's open is whether this MVP's pipeline attempts import-status classification at all. Confirm with Person 1 whether that's in scope, or whether this rule always REVIEWs for the demo."
     },
     {
       "id": "expiry_date_not_perishable",
@@ -30,14 +30,14 @@
       "condition": "product.may_expire == unknown",
       "effect": "result = REVIEW",
       "reasoning": "If perishability isn't confirmed, treat it as unresolved applicability, not N/A or FAIL.",
-      "status": "PROPOSED - same open question as import_status_unknown: does MVP classify product category/perishability at all, or is it always 'unknown'?"
+      "status": "MVP INTEGRATION DECISION (not a legal ambiguity) - Rule 6(1)(da)'s requirement for perishable goods is settled; what's open is whether this MVP's pipeline classifies perishability at all, or treats every product as 'unknown' (→ REVIEW). Confirm scope with Person 1/3."
     },
     {
       "id": "unit_sale_price_not_applicable",
       "applies_to_rule": "PCR-R09",
       "condition": "product.requires_unit_sale_price == false",
       "effect": "result = N/A",
-      "reasoning": "Unit sale price does not apply where RSP equals USP, on wholesale packages, on combination/group/multi-piece packages, or on e-commerce listings (see rule's legal_reference for sourcing on each exemption)."
+      "reasoning": "Confirmed: unit sale price does not apply to combination/group/multi-piece packages (2023 amendment), or to food articles (FSSAI carve-out, 2023 amendment). Plausible but NOT independently confirmed this pass: RSP-equals-USP exemption, wholesale-package exemption. An earlier version of this file also claimed an e-commerce exemption for unit sale price specifically - that claim was NOT confirmed and has been removed; the confirmed e-commerce carve-out (Rule 6(10)) applies to the manufacturing-date declaration, not unit sale price. See rule's legal_reference in rules.json for full sourcing."
     },
     {
       "id": "unit_sale_price_status_unknown",
@@ -45,7 +45,7 @@
       "condition": "product.requires_unit_sale_price == unknown",
       "effect": "result = REVIEW",
       "reasoning": "Applicability of unit sale price depends on package type and pricing, which may not always be determinable from the image alone. Do not guess.",
-      "status": "PROPOSED - confirm with Person 1/3 whether package-type classification (wholesale/combination/group/multi-piece) is in scope for MVP."
+      "status": "MVP INTEGRATION DECISION (not a legal ambiguity) - the exemption conditions confirmed this pass (combination/group/multi-piece packages, food articles) are settled by Rule 6(11) and its 2023 amendment; RSP=USP and wholesale-package exemptions remain plausible but unconfirmed. What's open is whether this MVP's pipeline classifies package type well enough to apply any of these. Confirm scope with Person 1/3."
     },
     {
       "id": "dimensions_not_relevant",
@@ -60,7 +60,7 @@
       "condition": "product.dimensions_relevant == unknown",
       "effect": "result = REVIEW",
       "reasoning": "If commodity category/relevance isn't confirmed, treat as unresolved rather than guessing N/A or FAIL.",
-      "status": "PROPOSED - confirm with Person 1/3 whether commodity-category classification needed for this is in scope for MVP."
+      "status": "MVP INTEGRATION DECISION (not a legal ambiguity) - what's open here is engineering scope (does the pipeline classify commodity category), not legal uncertainty. Note separately: PCR-R10's underlying legal basis is now partially verified (a dimensions declaration requirement, conditional on relevance, is confirmed to exist within Rule 6(1) via secondary sources) but the exact sub-clause letter is still unconfirmed - see rules.json legal_reference. That letter-level detail remains a genuine open legal-verification item, distinct from this classification-scope decision."
     },
     {
       "id": "placement_unavailable",
@@ -72,7 +72,7 @@
   ],
   "not_implemented_this_mvp": [
     "Multi-component/group package special handling beyond the unit-sale-price exemption already captured above (Rule 6(5)-adjacent area)",
-    "QR/electronic declaration as a substitute for printed declarations",
+    "QR/electronic declaration handling is outside this MVP's scope. This is a statement of what's unimplemented, NOT a claim that QR/electronic declarations can never legally substitute for printed declarations - actual legal applicability may depend on product/category-specific provisions (e.g. Rule 6(10) does address electronic-network declarations for e-commerce listings, though the confirmed carve-out there is narrower than a general QR-substitution allowance - see PCR-R09/R05 legal_reference notes). Do not build or claim either 'QR always works' or 'QR never works' logic without verifying the specific applicable provision.",
     "Full sub-condition derivation for unit_sale_price applicability (wholesale vs combination vs group vs multi-piece vs RSP==USP) - MVP treats this as one upstream boolean; see PCR-R09 applicability note in rules.json",
     "Legibility/font-size measurement against Rule 8 thresholds - MVP only collects evidence (bbox, OCR confidence, image quality) per PCR-R11; it does NOT compute an automatic legal FAIL from pixel/font size, since the exact legal measurement methodology has not been verified"
   ]

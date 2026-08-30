@@ -1,5 +1,5 @@
 {
-  "rules_version": "1.0-final",
+  "rules_version": "1.0",
   "note": "Rule IDs are FROZEN as of this version. Do not renumber without a version bump and team-wide notice.",
   "confidence_threshold": {
     "review_below": 0.6,
@@ -11,12 +11,13 @@
     "rule": "A detected date is not sufficient evidence of the declaration type. The extraction must identify date_role. An unresolved date role (null or 'unclear') MUST result in REVIEW - it must never be inferred or defaulted to 'manufacturing' or 'best_before_use_by'.",
     "applies_to_rules": ["PCR-R05", "PCR-R08"]
   },
+  "food_products_scope_note": "For packages containing food articles, several Rule 6(1) clauses in the LMPC Rules, 2011 explicitly carve out food and defer to food-specific legislation instead (originally the Prevention of Food Adulteration Act, 1954; now superseded in practice by the Food Safety and Standards Act, 2006 and FSSAI regulations). This carve-out is confirmed to apply to at least the manufacturer/packer/importer declaration (Rule 6(1)(a), Explanation III) and the manufacturing-date declaration (Rule 6(1)(d), first proviso), and the 2023 amendment extends a similar food carve-out to the unit sale price declaration (Rule 6(11)). PackSure's rule set (PCR-R01-R11) implements the Legal Metrology / LMPC framework only. It is NOT a complete compliance framework for food products - food packages may have additional or substituted requirements under FSSAI that this MVP does not evaluate. This should be stated plainly wherever PackSure's scope is described to users, teammates, or judges.",
   "rules": [
     {
       "rule_id": "PCR-R01",
       "field": "manufacturer",
       "requirement": "Name and address of the manufacturer, or packer, or importer must be declared.",
-      "legal_reference": "Legal Metrology (Packaged Commodities) Rules, 2011, Rule 6(1) - manufacturer/packer/importer declaration. Sub-clause letter not independently verified against the current consolidated text - VERIFY AGAINST CURRENT PRIMARY SOURCE.",
+      "legal_reference": "Legal Metrology (Packaged Commodities) Rules, 2011, Rule 6(1)(a) - manufacturer/packer/importer declaration. VERIFIED against bare-text excerpts (indiankanoon.org, cwnm.nic.in) - clause (a) is confirmed. Note: Explanation III to this clause states that for food articles, this sub-rule does not apply and food-specific law (originally Prevention of Food Adulteration Act 1954, now effectively FSSAI/Food Safety and Standards Act 2006) applies instead - see food_products_scope_note above.",
       "applicability": {
         "type": "package_scope",
         "condition": "applies_to_all_retail_packages"
@@ -37,7 +38,7 @@
       "rule_id": "PCR-R02",
       "field": "common_name",
       "requirement": "Common or generic name of the commodity must be declared.",
-      "legal_reference": "Rule 6(1) - generic/common name declaration. Sub-clause letter not independently verified - VERIFY AGAINST CURRENT PRIMARY SOURCE.",
+      "legal_reference": "Rule 6(1)(b) - common/generic name declaration. Clause letter (b) confirmed via a government-hosted source (cdnbbsr.s3waas.gov.in, official Gazette PDF) which quotes '(b) The common or generic names of the commodity...' directly following clause (a). Confidence: reasonably verified, though a full line-by-line cross-check against the current consolidated e-book has not been done - recommend a final check before formal submission.",
       "applicability": {
         "type": "package_scope",
         "condition": "applies_to_all_retail_packages"
@@ -58,7 +59,7 @@
       "rule_id": "PCR-R03",
       "field": "net_quantity",
       "requirement": "Net quantity must be declared with a standard unit.",
-      "legal_reference": "Rule 6(1) - net quantity declaration. Sub-clause letter not independently verified - VERIFY AGAINST CURRENT PRIMARY SOURCE.",
+      "legal_reference": "Rule 6(1) - net quantity declaration is confirmed to exist within the Rule 6(1) list (commonly cited by secondary sources as clause (c), sitting between the common-name clause (b) and the manufacturing-date clause (d)). The exact sub-clause letter was NOT directly confirmed against bare statutory text in this pass - VERIFY AGAINST CURRENT PRIMARY SOURCE before citing the letter specifically.",
       "applicability": {
         "type": "package_scope",
         "condition": "applies_to_all_retail_packages"
@@ -81,7 +82,7 @@
       "rule_id": "PCR-R04",
       "field": "mrp",
       "requirement": "Maximum Retail Price (inclusive of all taxes) must be declared.",
-      "legal_reference": "Rule 6(1) - MRP/retail sale price declaration. Sub-clause letter not independently verified - VERIFY AGAINST CURRENT PRIMARY SOURCE.",
+      "legal_reference": "Rule 6(1)(e) - MRP/retail sale price declaration. Clause letter (e) confirmed via multiple secondary sources referencing amendments to 'Clause (e) of sub-rule (1)' and 'Clause 6(1)(e)' directly (a government-hosted amendment PDF and a legal-commentary site independently agree on this letter).",
       "applicability": {
         "type": "package_scope",
         "condition": "applies_to_all_retail_packages"
@@ -103,7 +104,7 @@
       "rule_id": "PCR-R05",
       "field": "manufacturing_date",
       "requirement": "Month and year of manufacture (or import/packing, as applicable) must be declared.",
-      "legal_reference": "Rule 6(1)(d) - date of manufacture declaration, subject to carve-outs for food articles (Prevention of Food Adulteration Act / FSSAI), seeds, cosmetics, and spare parts under warranty per the 2023 amendment. VERIFY AGAINST CURRENT PRIMARY SOURCE for exact current carve-out list.",
+      "legal_reference": "Rule 6(1)(d) - date of manufacture declaration. VERIFIED against bare-text excerpt (indiankanoon.org): '(d) The month and year in which the commodity is manufactured or pre-packed or imported shall be mentioned...' Confirmed provisos/carve-outs: food articles are excluded (Prevention of Food Adulteration Act 1954 applies instead - see food_products_scope_note); seeds certified under the Seeds Act, 1966 are excluded; and per the 2023 amendment (effective 1 Apr 2024), spare parts/accessories used for warranty servicing (not sold to end customers) are exempt, and electronic products/spare parts must show the date visibly and legibly anywhere on the retail package.",
       "applicability": {
         "type": "package_scope",
         "condition": "applies_to_all_retail_packages"
@@ -126,7 +127,7 @@
       "rule_id": "PCR-R06",
       "field": "consumer_care",
       "requirement": "Name, address, telephone/email of the person or office to be contacted for consumer complaints must be declared.",
-      "legal_reference": "Rule 6(1) - consumer care declaration. Sub-clause letter not independently verified - VERIFY AGAINST CURRENT PRIMARY SOURCE.",
+      "legal_reference": "Consumer-care declaration is confirmed to exist in Rule 6, but this pass found evidence suggesting it may sit at Rule 6(2) - 'Every package shall bear the name, address, telephone number, e-mail address, if available, of the person who can be or the office which can be, contacted...' (wbconsumers.gov.in, government-hosted PDF) - rather than as a lettered sub-clause of 6(1) as earlier assumed. This is a CORRECTION from the previous version, which cited an unverified 6(1)(f). Still recommend a final check against the current consolidated text before formal submission, since this was read from an OCR'd/scanned government PDF excerpt rather than a clean bare-text database entry.",
       "applicability": {
         "type": "package_scope",
         "condition": "applies_to_all_retail_packages"
@@ -147,7 +148,7 @@
       "rule_id": "PCR-R07",
       "field": "country_of_origin",
       "requirement": "Country of origin must be declared for imported products.",
-      "legal_reference": "Rule 6(1) - country of origin declaration for imported packages. Sub-clause letter not independently verified - VERIFY AGAINST CURRENT PRIMARY SOURCE.",
+      "legal_reference": "Rule 6(1)(aa) - country of origin declaration for imported packages. VERIFIED against bare-text excerpt (rajnivesh.rajasthan.gov.in, government-hosted PDF): '(aa) The name of the country of origin or manufacture or assembly in case of imported products shall be...' Inserted via GSR 784(E) dated 24.10.2011 and GSR 832(E) dated 23.11.2011.",
       "applicability": {
         "type": "conditional",
         "condition": "product.is_imported == true",
@@ -169,7 +170,7 @@
       "rule_id": "PCR-R08",
       "field": "expiry_date",
       "requirement": "For commodities that may become unfit for consumption over time, the 'best before' or 'use by' date, month, and year must be declared.",
-      "legal_reference": "Rule 6(1)(da) - best before/use by declaration for applicable commodities. Confirmed to exist in the Rule 6 text via secondary/legal-database source (indiankanoon.org); recommend VERIFY AGAINST CURRENT PRIMARY SOURCE (Dept. of Consumer Affairs) before final submission.",
+      "legal_reference": "Rule 6(1)(da) - best before/use by declaration. VERIFIED against bare-text excerpt (rajnivesh.rajasthan.gov.in, government-hosted PDF): 'after clause (d), the following clause shall be inserted, namely:- (da) If a package contains a commodity which may become unfit for human consumption after a period of time, the best before or use by the date, month and year shall also be mentioned...' Inserted via GSR 629(E) dated 23.06.2017, effective 1-1-2018. Proviso confirmed: does not apply if another law already covers it.",
       "applicability": {
         "type": "conditional",
         "condition": "product.may_expire == true",
@@ -193,7 +194,7 @@
       "rule_id": "PCR-R09",
       "field": "unit_sale_price",
       "requirement": "The unit sale price (price per gram/kg, per cm/m, per ml/l, or per number/unit as applicable) must be declared, unless an exemption applies.",
-      "legal_reference": "Rule 6(11) (as substituted by the 2022 Amendment Rules, effective 1 Oct 2022) - unit sale price declaration. Confirmed exemptions found via secondary sources: (1) not required where retail sale price equals unit sale price [2nd proviso, Rule 6(11)], (2) not required on wholesale packages [Rule 2(r)], (3) not required for Combination/Group/Multi-Piece Packages [2023 amendment], (4) not required on e-commerce listings [Rule 6(10)]. VERIFY AGAINST CURRENT PRIMARY SOURCE before final submission - these exemptions are drawn from legal-commentary sources, not the bare gazetted text.",
+      "legal_reference": "Rule 6(11) - unit sale price declaration. Sub-rule number (11) confirmed via multiple independent sources including a regulatory-compliance tracker (TeamLease RegTech) quoting the 2023 amendment text directly. Confirmed exemptions: (1) Combination Packages, Group Packages, and Multi-Piece Packages are exempt (2023 amendment, effective 1 Jan 2024, with defined terms); (2) for food articles, the Food Safety and Standards Act, 2006 applies instead (2023 amendment). The RSP=USP and wholesale-package exemptions cited in the earlier version of this file are still NOT independently confirmed with bare-text quotes - VERIFY AGAINST CURRENT PRIMARY SOURCE for those two specifically.",
       "applicability": {
         "type": "conditional",
         "condition": "product.requires_unit_sale_price == true",
@@ -209,14 +210,14 @@
         "pass": "Unit sale price detected.",
         "fail": "Unit sale price is applicable but not found.",
         "review": "Applicability or evidence for unit sale price is ambiguous.",
-        "na": "Unit sale price does not apply to this package (e.g. RSP equals USP, wholesale/combination/group/multi-piece package, or e-commerce listing)."
+        "na": "Unit sale price does not apply to this package (confirmed exemptions: combination/group/multi-piece package, or food article under FSSAI carve-out. RSP-equals-USP and wholesale-package exemptions are plausible per earlier notes but NOT independently confirmed with bare-text quotes this pass - do not cite them as certain without checking the primary source. The earlier version of this rule also cited an e-commerce exemption for unit sale price specifically; that was NOT confirmed in this verification pass - the confirmed e-commerce carve-out found (Rule 6(10)) applies to the manufacturing-date declaration, not unit sale price - so this claim has been removed pending verification)."
       }
     },
     {
       "rule_id": "PCR-R10",
       "field": "dimensions",
-      "requirement": "Where relevant to the commodity category, dimensions (e.g. length, area) must be declared.",
-      "legal_reference": "NOT INDEPENDENTLY VERIFIED. Some commodity categories may have dimension-based declaration requirements under Schedule provisions of the LMPC Rules, but this has not been confirmed against a primary source for this project. VERIFY AGAINST CURRENT PRIMARY SOURCE before treating this as a confirmed general requirement - treat as commodity-category-specific, not universal.",
+      "requirement": "Where the sizes of the commodity contained in the package are relevant, the dimensions of the commodity must be declared; if a package contains multiple pieces of differing dimensions, each piece's dimensions must be declared.",
+      "legal_reference": "UPDATED THIS PASS - previously marked 'not independently verified at all'; now partially confirmed. A dimensions declaration requirement is confirmed to exist within the Rule 6(1) list via a legal-commentary source quoting language close to the requirement text above ('Where the sizes of the commodity contained in the package are relevant, the dimensions... and if the dimensions of the different pieces are different, the dimensions of each such different piece shall be mentioned'), consistent across two independent secondary sources. The exact sub-clause letter is still NOT confirmed against bare statutory text - VERIFY AGAINST CURRENT PRIMARY SOURCE for the letter specifically. IMPORTANT: this requirement is conditional/commodity-specific in the primary language itself ('where relevant') - it is NOT a universal requirement for every packaged commodity, and this rule must not be represented as such.",
       "applicability": {
         "type": "conditional",
         "condition": "product.dimensions_relevant == true",

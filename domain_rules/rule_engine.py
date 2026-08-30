@@ -1,5 +1,5 @@
 """
-PackSure — Rule Engine Reference Implementation (v1.0-final)
+PackSure — Rule Engine Reference Implementation (v1.0)
 Author: Riya (Person 5 - Domain/Rules)
 
 Reference implementation showing how rules.json + exceptions.json should be

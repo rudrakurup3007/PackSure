@@ -1,10 +1,10 @@
-# PackSure — Rules (Person 5 / Riya) — v1.0-final
+# PackSure — Rules (Person 5 / Riya) — v1.0
 
 ## What's in this folder
 - `rules.json` — **11 rules, IDs frozen (PCR-R01–PCR-R11).** PCR-R11 is experimental and never scored.
 - `exceptions.json` — applicability/exception conditions for every conditional rule (R07, R08, R09, R10) plus the placement fallback (R11).
 - `mock_tests.json` — 22 test cases covering every scenario in the spec, including the manufacturing-vs-best-before confusion case explicitly.
-- `rule_engine_reference.py` — working Python reference implementing the exact 5-step evaluation logic, plus a harness (`test_against_mock_tests()`) that runs every mock test against it. All 22 pass.
+- `rule_engine.py` — working Python reference implementing the exact 5-step evaluation logic, plus a harness (`test_against_mock_tests()`) that runs every mock test against it. All 22 pass.
 
 ## The 11 rules — FROZEN, do not renumber
 | rule_id | field | applicability | checks |
@@ -36,10 +36,13 @@ Excluded from both numerator and denominator: N/A rules, and PCR-R11 (always exc
 `manufacturer`, `common_name`, `net_quantity` (+`unit`, `unit_status`), `mrp` (+`currency`, `context_confirmed`), `manufacturing_date` (+`date_role`), `expiry_date` (+`date_role`), `consumer_care`, `country_of_origin`, `unit_sale_price` (+`unit`, `currency`), `dimensions` (+`unit`). Every field additionally carries `value`, `raw_text`, `confidence`, `bbox`, `context`.
 
 ## Open items to confirm with the team today
-- [ ] **Person 1/3**: does MVP attempt `is_imported`, `may_expire`, `requires_unit_sale_price`, `dimensions_relevant` classification at all, or are these always "unknown" (→ REVIEW) for the demo? See the `status: PROPOSED` notes in `exceptions.json`.
+- [ ] **Person 1/3**: does MVP attempt `is_imported`, `may_expire`, `requires_unit_sale_price`, `dimensions_relevant` classification at all, or are these always "unknown" (→ REVIEW) for the demo? These are MVP integration/engineering-scope decisions, not open legal questions - see the `status` notes in `exceptions.json`.
 - [ ] **Person 2**: confirm OCR/extraction can produce `date_role` and `unit_status` per the Person 2 handoff doc.
 - [ ] **Person 3**: confirm compliance engine can consume this exact JSON shape, or tell me what needs to change (rule_id/field names are now frozen from my side, so changes should flow the other way if needed).
 - [ ] **Legal**: every `legal_reference` field marked "VERIFY AGAINST CURRENT PRIMARY SOURCE" is a working citation from secondary/legal-commentary sources, not confirmed against the bare gazetted text. Don't present these as certain in the demo or final report without checking the Dept. of Consumer Affairs source directly.
+
+## Scope limitation — food products
+For food articles, several Rule 6(1) clauses explicitly defer to food-specific law instead (originally the Prevention of Food Adulteration Act 1954; in current practice, the Food Safety and Standards Act 2006 / FSSAI). This is confirmed for the manufacturer declaration (Rule 6(1)(a)) and the manufacturing-date declaration (Rule 6(1)(d)), and a similar carve-out applies to unit sale price per the 2023 amendment. **PackSure's PCR-R01–R11 ruleset implements Legal Metrology / LMPC only — it is not a complete compliance framework for food products.** State this plainly in the demo/report; don't imply PackSure fully covers food-label compliance. See `food_products_scope_note` in `rules.json` for the full sourcing.
 
 ## Not in MVP scope (see `not_implemented_this_mvp` in exceptions.json)
 Full sub-condition derivation for unit sale price exemptions (MVP treats it as one upstream boolean), QR/electronic declaration substitution, and automatic legal FAIL from measured font/pixel size (MVP only collects the evidence, does not compute a legal verdict from it).

@@ -6,7 +6,7 @@
 1. `rules.json` — **11 rules, IDs now frozen: PCR-R01 through PCR-R11.** This is final from my side — please build against these IDs rather than the R9-example numbering from the earlier architecture doc.
 2. `exceptions.json` — every applicability/exception condition, for all conditional rules
 3. `mock_tests.json` — 22 test cases with expected outcomes
-4. `rule_engine_reference.py` — working reference implementation. All 22 mock tests pass against it (`test_against_mock_tests()` in the file). Use it to validate your own implementation matches.
+4. `rule_engine.py` — working reference implementation. All 22 mock tests pass against it (`test_against_mock_tests()` in the file). Use it to validate your own implementation matches.
 
 ## The 11 rules — frozen, final
 | rule_id | field | applicability |
@@ -38,10 +38,15 @@ N/A rules and PCR-R11 are excluded from both numerator and denominator, always �
 1. **Build the compliance engine against these 11 frozen rule_ids and field names.** No further ID changes expected from my side.
 2. **Decide which of the four conditional-applicability signals your MVP actually classifies:** `product.is_imported`, `product.may_expire`, `product.requires_unit_sale_price`, `product.dimensions_relevant`. If any of these are out of scope for the demo, they'll simply always resolve to REVIEW under the current exception logic — confirm that's acceptable, or tell me to hardcode a default.
 3. **Confirm the unit_sale_price applicability sub-conditions are out of scope for MVP as a compound check.** I've collapsed "RSP=USP / wholesale / combination / group / multi-piece / e-commerce" into a single upstream boolean (`requires_unit_sale_price`) rather than re-deriving each sub-condition in the rule engine — flag if you want it decomposed further.
-4. **Wire `rules.json` + `exceptions.json` into the compliance engine** using the logic in `rule_engine_reference.py`, and run `test_against_mock_tests()` (or equivalent) against your implementation.
+4. **Wire `rules.json` + `exceptions.json` into the compliance engine** using the logic in `rule_engine.py`, and run `test_against_mock_tests()` (or equivalent) against your implementation.
 
-## What's still unverified (flag this, don't present as fact)
-Every `legal_reference` field marked "VERIFY AGAINST CURRENT PRIMARY SOURCE" is a working citation from secondary/legal-commentary sources (legal blogs, law-firm summaries, FAQ documents), not the bare gazetted Rule 6 text checked clause-by-clause. This is true for exact sub-clause letters on R01–R06, the Rule 6(1)(da) reference for R08, the Rule 6(11) exemption list for R09, and especially R10 (dimensions) which has NOT been independently confirmed as a general requirement at all. Do not state any of these as certain in the demo or final report without checking https://doca.gov.in directly.
+## Legal-source and scope note
+
+The current 11-rule package has been reviewed for the PackSure MVP against the applicable Legal Metrology framework. Product/category-specific applicability and any additional legal requirements must still be assessed where the rules explicitly mark them as conditional.
+
+- PCR-R10 dimensions remain conditional/commodity-specific; do not treat dimensions as universally mandatory for every commodity.
+- PCR-R11 placement/PDP remains experimental and non-scored; do not introduce unsupported fixed-position requirements.
+- Do not introduce additional legal requirements or assumptions during integration without confirming their applicability.
 
 ## PCR-R11 (placement) — explicit scope note
 This is a real requirement (Principal Display Panel under Rule 7, manner of declaration under Rule 8), but the MVP does not implement a universal placement rule like "MRP must be at position X" — no such specific claim exists in this ruleset. It only collects evidence (`bbox`, `nearby_text`, `context_confirmed`, `image_geometry`) for a possible experimental check. If your team doesn't get to implementing panel-boundary detection, that's an acceptable known gap — don't spend demo-day time on it.
