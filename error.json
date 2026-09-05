@@ -1,0 +1,35 @@
+{
+  "error_schema": {
+    "error": {
+      "code": "string",
+      "message": "string"
+    }
+  },
+  "errors": [
+    {
+      "http_status": 400,
+      "code": "MISSING_IMAGES",
+      "message": "At least 1 image is required."
+    },
+    {
+      "http_status": 400,
+      "code": "TOO_MANY_IMAGES",
+      "message": "A maximum of 3 images is allowed."
+    },
+    {
+      "http_status": 400,
+      "code": "UNSUPPORTED_FORMAT",
+      "message": "Supported image formats are JPG, JPEG, PNG, and WEBP."
+    },
+    {
+      "http_status": 400,
+      "code": "INVALID_IMAGE",
+      "message": "The uploaded image is invalid or corrupted."
+    },
+    {
+      "http_status": 500,
+      "code": "INTERNAL_SERVER_ERROR",
+      "message": "An unexpected server error occurred."
+    }
+  ]
+}
