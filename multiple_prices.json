@@ -1,0 +1,339 @@
+{
+  "declarations": {
+    "manufacturer": {
+      "value": "Starlight Electronics Pvt Ltd, Chennai",
+      "raw_text": "Mfg By: Starlight Electronics Pvt Ltd, Chennai",
+      "confidence": 0.957,
+      "bbox": [
+        42,
+        255,
+        580,
+        278
+      ],
+      "image_index": 1,
+      "context": "Rs. 499 | Rs. 399 | Mfg By: Starlight Electronics Pvt Ltd, Chennai | MFG DATE: 01/2026 | Consumer Care: 1800-222-3333"
+    },
+    "common_name": {
+      "value": null,
+      "raw_text": null,
+      "confidence": null,
+      "bbox": null,
+      "image_index": null,
+      "context": null
+    },
+    "net_quantity": {
+      "value": "1",
+      "raw_text": "Net Qty: 1 unit",
+      "confidence": 0.955,
+      "bbox": [
+        42,
+        129,
+        215,
+        152
+      ],
+      "image_index": 1,
+      "context": "STARLIGHT ELECTRONICS | USB-C Charging Cable 1m | Net Qty: 1 unit | Rs. 499 | Rs. 399",
+      "unit": null,
+      "unit_status": "ambiguous"
+    },
+    "mrp": {
+      "value": "499",
+      "raw_text": "Rs. 499",
+      "confidence": 0.96,
+      "bbox": [
+        42,
+        171,
+        129,
+        189
+      ],
+      "image_index": 1,
+      "context": "USB-C Charging Cable 1m | Net Qty: 1 unit | Rs. 499 | Rs. 399 | Mfg By: Starlight Electronics Pvt Ltd, Chennai",
+      "currency": "INR",
+      "context_confirmed": false
+    },
+    "manufacturing_date": {
+      "value": "01/2026",
+      "raw_text": "MFG DATE: 01/2026",
+      "confidence": 0.953,
+      "bbox": [
+        42,
+        297,
+        277,
+        317
+      ],
+      "image_index": 1,
+      "context": "Rs. 399 | Mfg By: Starlight Electronics Pvt Ltd, Chennai | MFG DATE: 01/2026 | Consumer Care: 1800-222-3333 | Dimensions: 10 x 6x 3cm",
+      "date_role": "manufacturing"
+    },
+    "expiry_date": {
+      "value": null,
+      "raw_text": null,
+      "confidence": null,
+      "bbox": null,
+      "image_index": null,
+      "context": null,
+      "date_role": null
+    },
+    "consumer_care": {
+      "value": "1800-222-3333",
+      "raw_text": "Consumer Care: 1800-222-3333",
+      "confidence": 0.93,
+      "bbox": [
+        41,
+        339,
+        424,
+        357
+      ],
+      "image_index": 1,
+      "context": "Mfg By: Starlight Electronics Pvt Ltd, Chennai | MFG DATE: 01/2026 | Consumer Care: 1800-222-3333 | Dimensions: 10 x 6x 3cm"
+    },
+    "country_of_origin": {
+      "value": null,
+      "raw_text": null,
+      "confidence": null,
+      "bbox": null,
+      "image_index": null,
+      "context": null
+    },
+    "unit_sale_price": {
+      "value": null,
+      "raw_text": null,
+      "confidence": null,
+      "bbox": null,
+      "image_index": null,
+      "context": null
+    },
+    "dimensions": {
+      "value": "10 x 6x 3",
+      "raw_text": "Dimensions: 10 x 6x 3cm",
+      "confidence": 0.918,
+      "bbox": [
+        42,
+        381,
+        358,
+        399
+      ],
+      "image_index": 1,
+      "context": "MFG DATE: 01/2026 | Consumer Care: 1800-222-3333 | Dimensions: 10 x 6x 3cm",
+      "unit": "cm"
+    },
+    "principal_display_panel_colocation": {
+      "bbox": [
+        42,
+        255,
+        580,
+        278
+      ],
+      "nearby_text": "Rs. 499 | Rs. 399 | Mfg By: Starlight Electronics Pvt Ltd, Chennai | MFG DATE: 01/2026 | Consumer Care: 1800-222-3333",
+      "context_confirmed": null,
+      "image_geometry": null
+    }
+  },
+  "product_context": {
+    "is_imported": null,
+    "may_expire": null,
+    "requires_unit_sale_price": null,
+    "dimensions_relevant": true
+  },
+  "rule_engine_results": [
+    {
+      "field": "manufacturer",
+      "rule_id": "PCR-R01",
+      "status": "PASS",
+      "reason": "Manufacturer/packer/importer details detected.",
+      "evidence": {
+        "value": "Starlight Electronics Pvt Ltd, Chennai",
+        "raw_text": "Mfg By: Starlight Electronics Pvt Ltd, Chennai",
+        "confidence": 0.957,
+        "bbox": [
+          42,
+          255,
+          580,
+          278
+        ],
+        "image_index": 1,
+        "context": "Rs. 499 | Rs. 399 | Mfg By: Starlight Electronics Pvt Ltd, Chennai | MFG DATE: 01/2026 | Consumer Care: 1800-222-3333"
+      },
+      "scored": true
+    },
+    {
+      "field": "common_name",
+      "rule_id": "PCR-R02",
+      "status": "FAIL",
+      "reason": "Commodity name not detected.",
+      "evidence": null,
+      "scored": true
+    },
+    {
+      "field": "net_quantity",
+      "rule_id": "PCR-R03",
+      "status": "REVIEW",
+      "reason": "Net quantity detected but unit is ambiguous or extraction confidence is low.",
+      "evidence": {
+        "value": "1",
+        "raw_text": "Net Qty: 1 unit",
+        "confidence": 0.955,
+        "bbox": [
+          42,
+          129,
+          215,
+          152
+        ],
+        "image_index": 1,
+        "context": "STARLIGHT ELECTRONICS | USB-C Charging Cable 1m | Net Qty: 1 unit | Rs. 499 | Rs. 399",
+        "unit": null,
+        "unit_status": "ambiguous"
+      },
+      "scored": true
+    },
+    {
+      "field": "mrp",
+      "rule_id": "PCR-R04",
+      "status": "REVIEW",
+      "reason": "A price was detected but MRP context is uncertain (e.g. multiple prices present, none confirmed as MRP).",
+      "evidence": {
+        "value": "499",
+        "raw_text": "Rs. 499",
+        "confidence": 0.96,
+        "bbox": [
+          42,
+          171,
+          129,
+          189
+        ],
+        "image_index": 1,
+        "context": "USB-C Charging Cable 1m | Net Qty: 1 unit | Rs. 499 | Rs. 399 | Mfg By: Starlight Electronics Pvt Ltd, Chennai",
+        "currency": "INR",
+        "context_confirmed": false
+      },
+      "scored": true
+    },
+    {
+      "field": "manufacturing_date",
+      "rule_id": "PCR-R05",
+      "status": "PASS",
+      "reason": "Manufacturing/packing date detected and confirmed as manufacturing date.",
+      "evidence": {
+        "value": "01/2026",
+        "raw_text": "MFG DATE: 01/2026",
+        "confidence": 0.953,
+        "bbox": [
+          42,
+          297,
+          277,
+          317
+        ],
+        "image_index": 1,
+        "context": "Rs. 399 | Mfg By: Starlight Electronics Pvt Ltd, Chennai | MFG DATE: 01/2026 | Consumer Care: 1800-222-3333 | Dimensions: 10 x 6x 3cm",
+        "date_role": "manufacturing"
+      },
+      "scored": true
+    },
+    {
+      "field": "consumer_care",
+      "rule_id": "PCR-R06",
+      "status": "PASS",
+      "reason": "Consumer care details detected.",
+      "evidence": {
+        "value": "1800-222-3333",
+        "raw_text": "Consumer Care: 1800-222-3333",
+        "confidence": 0.93,
+        "bbox": [
+          41,
+          339,
+          424,
+          357
+        ],
+        "image_index": 1,
+        "context": "Mfg By: Starlight Electronics Pvt Ltd, Chennai | MFG DATE: 01/2026 | Consumer Care: 1800-222-3333 | Dimensions: 10 x 6x 3cm"
+      },
+      "scored": true
+    },
+    {
+      "field": "country_of_origin",
+      "rule_id": "PCR-R07",
+      "status": "REVIEW",
+      "reason": "Import status or country-of-origin evidence is ambiguous.",
+      "evidence": {
+        "value": null,
+        "raw_text": null,
+        "confidence": null,
+        "bbox": null,
+        "image_index": null,
+        "context": null
+      },
+      "scored": true
+    },
+    {
+      "field": "expiry_date",
+      "rule_id": "PCR-R08",
+      "status": "REVIEW",
+      "reason": "A date was detected but its role (manufacturing vs. best-before/use-by) could not be reliably established.",
+      "evidence": {
+        "value": null,
+        "raw_text": null,
+        "confidence": null,
+        "bbox": null,
+        "image_index": null,
+        "context": null,
+        "date_role": null
+      },
+      "scored": true
+    },
+    {
+      "field": "unit_sale_price",
+      "rule_id": "PCR-R09",
+      "status": "REVIEW",
+      "reason": "Applicability or evidence for unit sale price is ambiguous.",
+      "evidence": {
+        "value": null,
+        "raw_text": null,
+        "confidence": null,
+        "bbox": null,
+        "image_index": null,
+        "context": null
+      },
+      "scored": true
+    },
+    {
+      "field": "dimensions",
+      "rule_id": "PCR-R10",
+      "status": "PASS",
+      "reason": "Dimensions detected for a commodity category where they are relevant.",
+      "evidence": {
+        "value": "10 x 6x 3",
+        "raw_text": "Dimensions: 10 x 6x 3cm",
+        "confidence": 0.918,
+        "bbox": [
+          42,
+          381,
+          358,
+          399
+        ],
+        "image_index": 1,
+        "context": "MFG DATE: 01/2026 | Consumer Care: 1800-222-3333 | Dimensions: 10 x 6x 3cm",
+        "unit": "cm"
+      },
+      "scored": true
+    },
+    {
+      "field": "principal_display_panel_colocation",
+      "rule_id": "PCR-R11",
+      "status": "REVIEW",
+      "reason": "Placement/legibility could not be reliably confirmed from available evidence.",
+      "evidence": {
+        "bbox": [
+          42,
+          255,
+          580,
+          278
+        ],
+        "nearby_text": "Rs. 499 | Rs. 399 | Mfg By: Starlight Electronics Pvt Ltd, Chennai | MFG DATE: 01/2026 | Consumer Care: 1800-222-3333",
+        "context_confirmed": null,
+        "image_geometry": null
+      },
+      "scored": false
+    }
+  ],
+  "score": 40
+}
