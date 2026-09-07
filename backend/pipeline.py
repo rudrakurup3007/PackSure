@@ -22,14 +22,32 @@ Open questions this pipeline currently answers "no" to (see
 handoff/HANDOFF_Person2.md "Open questions for you"):
   - may_expire: not classified by this MVP -> always None (-> REVIEW for
     PCR-R08). Hardcode a default here if the team decides otherwise.
-  - is_imported / requires_unit_sale_price / dimensions_relevant: partially
-    inferred where possible (see field_extractors.py), otherwise None.
+  - is_imported: partially inferred from the country_of_origin text itself
+    (see field_extractors.py) - True/False when an explicit origin/"made in"
+    line is found, None otherwise.
+  - requires_unit_sale_price / dimensions_relevant: NOT classified by this
+    MVP -> always None (-> REVIEW for PCR-R09/PCR-R10). See note below.
+
+FIX (this pass): requires_unit_sale_price / dimensions_relevant used to be
+derived as `True if <field>_value else None` - i.e. "applicable" was set to
+True only when the corresponding declaration had already been found, and
+None otherwise. That's circular, not a real applicability classification:
+it meant PCR-R09/PCR-R10 could never resolve to N/A (the field is never
+actually classified False), and could never genuinely FAIL either (whenever
+"applicable" was True, the value was by construction already present, so
+the rule could only trivially PASS). A real "does this commodity category
+require a unit sale price / have relevant dimensions" classification is out
+of scope for this MVP's OCR-only pipeline - per HANDOFF_Person2.md's open
+question 1, the honest answer for now is "we don't know", so both are always
+None here. That correctly routes PCR-R09/PCR-R10 to REVIEW (not a silent,
+misleading PASS) until product/category classification is implemented
+upstream.
 """
 
 from typing import List
 
-from ocr_extraction.ocr_engine import run_ocr, OCRLine
-from ocr_extraction import field_extractors as fx
+from .ocr_engine import run_ocr, OCRLine
+from . import field_extractors as fx
 
 
 def extract_declarations(lines: List[OCRLine]) -> dict:
@@ -48,18 +66,18 @@ def extract_declarations(lines: List[OCRLine]) -> dict:
         "unit_sale_price": fx.extract_unit_sale_price(lines),
         "dimensions": fx.extract_dimensions(lines),
     }
+    for _field, evidence in declarations.items():
+        if isinstance(evidence, dict) and evidence.get("value") is not None:
+            evidence["value"] = str(evidence["value"])
     declarations["principal_display_panel_colocation"] = fx.extract_pdp_colocation_evidence(
         lines, declarations["manufacturer"]
     )
 
-    unit_sale_price_value = declarations["unit_sale_price"]["value"]
-    dimensions_value = declarations["dimensions"]["value"]
-
     product_context = {
         "is_imported": is_imported,                      # None if undetermined
         "may_expire": None,                               # not classified by this MVP - see module docstring
-        "requires_unit_sale_price": True if unit_sale_price_value else None,
-        "dimensions_relevant": True if dimensions_value else None,
+        "requires_unit_sale_price": None,                  # not classified by this MVP - see module docstring
+        "dimensions_relevant": None,                       # not classified by this MVP - see module docstring
     }
 
     return {"declarations": declarations, "product_context": product_context}
@@ -76,7 +94,7 @@ if __name__ == "__main__":
     import sys
 
     if len(sys.argv) < 2:
-        print("Usage: python -m ocr_extraction.pipeline <image1> [image2] [image3]")
+        print("Usage: python -m backend.pipeline <image1> [image2] [image3]")
         sys.exit(1)
 
     output = run_pipeline(sys.argv[1:])

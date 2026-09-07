@@ -124,6 +124,7 @@ class UnitStatus(str, Enum):
 
     CONFIRMED_ABSENT = "confirmed_absent"
     AMBIGUOUS = "ambiguous"
+    CONFIRMED_PRESENT = "confirmed_present"
 
 
 # ============================================================================

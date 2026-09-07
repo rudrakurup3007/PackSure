@@ -83,7 +83,13 @@ def _to_violation(result: RuleResult) -> Optional[ViolationItem]:
     REVIEW -> WARNING violation
     PASS   -> no violation (None)
     N/A    -> no violation (None)
+
+    Unscored rules (PCR-R11) never become public violations: they are
+    informational only and would otherwise appear on every scan as WARNING.
     """
+    if not result.scored:
+        return None
+
     if result.status == RuleStatus.FAIL:
         compliance_status = ComplianceStatus.NON_COMPLIANT
     elif result.status == RuleStatus.REVIEW:
