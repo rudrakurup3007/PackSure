@@ -1,0 +1,337 @@
+{
+  "declarations": {
+    "manufacturer": {
+      "value": "Rivera Snacks Ltd, Nashik",
+      "raw_text": "Manufactured by: Rivera Snacks Ltd, Nashik",
+      "confidence": 0.96,
+      "bbox": [
+        42,
+        213,
+        567,
+        236
+      ],
+      "image_index": 1,
+      "context": "Net Qty 250 | MRP Rs. 20 | Manufactured by: Rivera Snacks Ltd, Nashik | MFG: 03/2026 | USE BY: 09/2026"
+    },
+    "common_name": {
+      "value": null,
+      "raw_text": null,
+      "confidence": null,
+      "bbox": null,
+      "image_index": null,
+      "context": null
+    },
+    "net_quantity": {
+      "value": "250",
+      "raw_text": "Net Qty 250",
+      "confidence": 0.953,
+      "bbox": [
+        42,
+        129,
+        184,
+        152
+      ],
+      "image_index": 1,
+      "context": "RIVERA SNACKS | Salted Wafers | Net Qty 250 | MRP Rs. 20 | Manufactured by: Rivera Snacks Ltd, Nashik",
+      "unit": null,
+      "unit_status": "confirmed_absent"
+    },
+    "mrp": {
+      "value": "20",
+      "raw_text": "MRP Rs. 20",
+      "confidence": 0.957,
+      "bbox": [
+        42,
+        171,
+        173,
+        189
+      ],
+      "image_index": 1,
+      "context": "Salted Wafers | Net Qty 250 | MRP Rs. 20 | Manufactured by: Rivera Snacks Ltd, Nashik | MFG: 03/2026",
+      "currency": "INR",
+      "context_confirmed": true
+    },
+    "manufacturing_date": {
+      "value": "03/2026",
+      "raw_text": "MFG: 03/2026",
+      "confidence": 0.96,
+      "bbox": [
+        42,
+        255,
+        207,
+        275
+      ],
+      "image_index": 1,
+      "context": "MRP Rs. 20 | Manufactured by: Rivera Snacks Ltd, Nashik | MFG: 03/2026 | USE BY: 09/2026 | Customer Care: care@riverasnacks.example",
+      "date_role": "manufacturing"
+    },
+    "expiry_date": {
+      "value": "09/2026",
+      "raw_text": "USE BY: 09/2026",
+      "confidence": 0.96,
+      "bbox": [
+        42,
+        297,
+        236,
+        317
+      ],
+      "image_index": 1,
+      "context": "Manufactured by: Rivera Snacks Ltd, Nashik | MFG: 03/2026 | USE BY: 09/2026 | Customer Care: care@riverasnacks.example",
+      "date_role": "best_before_use_by"
+    },
+    "consumer_care": {
+      "value": "care@riverasnacks.example",
+      "raw_text": "Customer Care: care@riverasnacks.example",
+      "confidence": 0.927,
+      "bbox": [
+        41,
+        339,
+        574,
+        362
+      ],
+      "image_index": 1,
+      "context": "MFG: 03/2026 | USE BY: 09/2026 | Customer Care: care@riverasnacks.example"
+    },
+    "country_of_origin": {
+      "value": null,
+      "raw_text": null,
+      "confidence": null,
+      "bbox": null,
+      "image_index": null,
+      "context": null
+    },
+    "unit_sale_price": {
+      "value": null,
+      "raw_text": null,
+      "confidence": null,
+      "bbox": null,
+      "image_index": null,
+      "context": null
+    },
+    "dimensions": {
+      "value": null,
+      "raw_text": null,
+      "confidence": null,
+      "bbox": null,
+      "image_index": null,
+      "context": null
+    },
+    "principal_display_panel_colocation": {
+      "bbox": [
+        42,
+        213,
+        567,
+        236
+      ],
+      "nearby_text": "Net Qty 250 | MRP Rs. 20 | Manufactured by: Rivera Snacks Ltd, Nashik | MFG: 03/2026 | USE BY: 09/2026",
+      "context_confirmed": null,
+      "image_geometry": null
+    }
+  },
+  "product_context": {
+    "is_imported": null,
+    "may_expire": null,
+    "requires_unit_sale_price": null,
+    "dimensions_relevant": null
+  },
+  "rule_engine_results": [
+    {
+      "field": "manufacturer",
+      "rule_id": "PCR-R01",
+      "status": "PASS",
+      "reason": "Manufacturer/packer/importer details detected.",
+      "evidence": {
+        "value": "Rivera Snacks Ltd, Nashik",
+        "raw_text": "Manufactured by: Rivera Snacks Ltd, Nashik",
+        "confidence": 0.96,
+        "bbox": [
+          42,
+          213,
+          567,
+          236
+        ],
+        "image_index": 1,
+        "context": "Net Qty 250 | MRP Rs. 20 | Manufactured by: Rivera Snacks Ltd, Nashik | MFG: 03/2026 | USE BY: 09/2026"
+      },
+      "scored": true
+    },
+    {
+      "field": "common_name",
+      "rule_id": "PCR-R02",
+      "status": "FAIL",
+      "reason": "Commodity name not detected.",
+      "evidence": null,
+      "scored": true
+    },
+    {
+      "field": "net_quantity",
+      "rule_id": "PCR-R03",
+      "status": "FAIL",
+      "reason": "Net quantity value found but no unit was declared on the package.",
+      "evidence": {
+        "value": "250",
+        "raw_text": "Net Qty 250",
+        "confidence": 0.953,
+        "bbox": [
+          42,
+          129,
+          184,
+          152
+        ],
+        "image_index": 1,
+        "context": "RIVERA SNACKS | Salted Wafers | Net Qty 250 | MRP Rs. 20 | Manufactured by: Rivera Snacks Ltd, Nashik",
+        "unit": null,
+        "unit_status": "confirmed_absent"
+      },
+      "scored": true
+    },
+    {
+      "field": "mrp",
+      "rule_id": "PCR-R04",
+      "status": "PASS",
+      "reason": "Valid MRP declaration detected.",
+      "evidence": {
+        "value": "20",
+        "raw_text": "MRP Rs. 20",
+        "confidence": 0.957,
+        "bbox": [
+          42,
+          171,
+          173,
+          189
+        ],
+        "image_index": 1,
+        "context": "Salted Wafers | Net Qty 250 | MRP Rs. 20 | Manufactured by: Rivera Snacks Ltd, Nashik | MFG: 03/2026",
+        "currency": "INR",
+        "context_confirmed": true
+      },
+      "scored": true
+    },
+    {
+      "field": "manufacturing_date",
+      "rule_id": "PCR-R05",
+      "status": "PASS",
+      "reason": "Manufacturing/packing date detected and confirmed as manufacturing date.",
+      "evidence": {
+        "value": "03/2026",
+        "raw_text": "MFG: 03/2026",
+        "confidence": 0.96,
+        "bbox": [
+          42,
+          255,
+          207,
+          275
+        ],
+        "image_index": 1,
+        "context": "MRP Rs. 20 | Manufactured by: Rivera Snacks Ltd, Nashik | MFG: 03/2026 | USE BY: 09/2026 | Customer Care: care@riverasnacks.example",
+        "date_role": "manufacturing"
+      },
+      "scored": true
+    },
+    {
+      "field": "consumer_care",
+      "rule_id": "PCR-R06",
+      "status": "PASS",
+      "reason": "Consumer care details detected.",
+      "evidence": {
+        "value": "care@riverasnacks.example",
+        "raw_text": "Customer Care: care@riverasnacks.example",
+        "confidence": 0.927,
+        "bbox": [
+          41,
+          339,
+          574,
+          362
+        ],
+        "image_index": 1,
+        "context": "MFG: 03/2026 | USE BY: 09/2026 | Customer Care: care@riverasnacks.example"
+      },
+      "scored": true
+    },
+    {
+      "field": "country_of_origin",
+      "rule_id": "PCR-R07",
+      "status": "REVIEW",
+      "reason": "Import status or country-of-origin evidence is ambiguous.",
+      "evidence": {
+        "value": null,
+        "raw_text": null,
+        "confidence": null,
+        "bbox": null,
+        "image_index": null,
+        "context": null
+      },
+      "scored": true
+    },
+    {
+      "field": "expiry_date",
+      "rule_id": "PCR-R08",
+      "status": "REVIEW",
+      "reason": "A date was detected but its role (manufacturing vs. best-before/use-by) could not be reliably established.",
+      "evidence": {
+        "value": "09/2026",
+        "raw_text": "USE BY: 09/2026",
+        "confidence": 0.96,
+        "bbox": [
+          42,
+          297,
+          236,
+          317
+        ],
+        "image_index": 1,
+        "context": "Manufactured by: Rivera Snacks Ltd, Nashik | MFG: 03/2026 | USE BY: 09/2026 | Customer Care: care@riverasnacks.example",
+        "date_role": "best_before_use_by"
+      },
+      "scored": true
+    },
+    {
+      "field": "unit_sale_price",
+      "rule_id": "PCR-R09",
+      "status": "REVIEW",
+      "reason": "Applicability or evidence for unit sale price is ambiguous.",
+      "evidence": {
+        "value": null,
+        "raw_text": null,
+        "confidence": null,
+        "bbox": null,
+        "image_index": null,
+        "context": null
+      },
+      "scored": true
+    },
+    {
+      "field": "dimensions",
+      "rule_id": "PCR-R10",
+      "status": "REVIEW",
+      "reason": "Relevance of dimensions to this commodity category is unclear.",
+      "evidence": {
+        "value": null,
+        "raw_text": null,
+        "confidence": null,
+        "bbox": null,
+        "image_index": null,
+        "context": null
+      },
+      "scored": true
+    },
+    {
+      "field": "principal_display_panel_colocation",
+      "rule_id": "PCR-R11",
+      "status": "REVIEW",
+      "reason": "Placement/legibility could not be reliably confirmed from available evidence.",
+      "evidence": {
+        "bbox": [
+          42,
+          213,
+          567,
+          236
+        ],
+        "nearby_text": "Net Qty 250 | MRP Rs. 20 | Manufactured by: Rivera Snacks Ltd, Nashik | MFG: 03/2026 | USE BY: 09/2026",
+        "context_confirmed": null,
+        "image_geometry": null
+      },
+      "scored": false
+    }
+  ],
+  "score": 40
+}

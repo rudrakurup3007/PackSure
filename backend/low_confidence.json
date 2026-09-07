@@ -1,0 +1,262 @@
+{
+  "declarations": {
+    "manufacturer": {
+      "value": null,
+      "raw_text": null,
+      "confidence": null,
+      "bbox": null,
+      "image_index": null,
+      "context": null
+    },
+    "common_name": {
+      "value": null,
+      "raw_text": null,
+      "confidence": null,
+      "bbox": null,
+      "image_index": null,
+      "context": null
+    },
+    "net_quantity": {
+      "value": null,
+      "raw_text": null,
+      "confidence": null,
+      "bbox": null,
+      "image_index": null,
+      "context": null
+    },
+    "mrp": {
+      "value": "6",
+      "raw_text": "MRP Rs. 6d",
+      "confidence": 0.533,
+      "bbox": [
+        41,
+        108,
+        123,
+        120
+      ],
+      "image_index": 1,
+      "context": "TINYMHINT BOOS | Net We. LSa @ | MRP Rs. 6d | Mf By, Tinyptint Fatds, tolkats: | MPG DATE: 08/2026:",
+      "currency": "INR",
+      "context_confirmed": true
+    },
+    "manufacturing_date": {
+      "value": "08/2026",
+      "raw_text": "MPG DATE: 08/2026:",
+      "confidence": 0.593,
+      "bbox": [
+        41,
+        160,
+        192,
+        176
+      ],
+      "image_index": 1,
+      "context": "MRP Rs. 6d | Mf By, Tinyptint Fatds, tolkats: | MPG DATE: 08/2026: | BEST HEPURE! OF 2027 | Consumer Care 1400-558. 666",
+      "date_role": "unclear"
+    },
+    "expiry_date": {
+      "value": null,
+      "raw_text": null,
+      "confidence": null,
+      "bbox": null,
+      "image_index": null,
+      "context": null,
+      "date_role": null
+    },
+    "consumer_care": {
+      "value": null,
+      "raw_text": null,
+      "confidence": null,
+      "bbox": null,
+      "image_index": null,
+      "context": null
+    },
+    "country_of_origin": {
+      "value": null,
+      "raw_text": null,
+      "confidence": null,
+      "bbox": null,
+      "image_index": null,
+      "context": null
+    },
+    "unit_sale_price": {
+      "value": null,
+      "raw_text": null,
+      "confidence": null,
+      "bbox": null,
+      "image_index": null,
+      "context": null
+    },
+    "dimensions": {
+      "value": null,
+      "raw_text": null,
+      "confidence": null,
+      "bbox": null,
+      "image_index": null,
+      "context": null
+    },
+    "principal_display_panel_colocation": {
+      "bbox": null,
+      "nearby_text": null,
+      "context_confirmed": null,
+      "image_geometry": null
+    }
+  },
+  "product_context": {
+    "is_imported": null,
+    "may_expire": null,
+    "requires_unit_sale_price": null,
+    "dimensions_relevant": null
+  },
+  "rule_engine_results": [
+    {
+      "field": "manufacturer",
+      "rule_id": "PCR-R01",
+      "status": "FAIL",
+      "reason": "Manufacturer/packer/importer details not found.",
+      "evidence": null,
+      "scored": true
+    },
+    {
+      "field": "common_name",
+      "rule_id": "PCR-R02",
+      "status": "FAIL",
+      "reason": "Commodity name not detected.",
+      "evidence": null,
+      "scored": true
+    },
+    {
+      "field": "net_quantity",
+      "rule_id": "PCR-R03",
+      "status": "FAIL",
+      "reason": "Net quantity value found but no unit was declared on the package.",
+      "evidence": null,
+      "scored": true
+    },
+    {
+      "field": "mrp",
+      "rule_id": "PCR-R04",
+      "status": "REVIEW",
+      "reason": "A price was detected but MRP context is uncertain (e.g. multiple prices present, none confirmed as MRP).",
+      "evidence": {
+        "value": "6",
+        "raw_text": "MRP Rs. 6d",
+        "confidence": 0.533,
+        "bbox": [
+          41,
+          108,
+          123,
+          120
+        ],
+        "image_index": 1,
+        "context": "TINYMHINT BOOS | Net We. LSa @ | MRP Rs. 6d | Mf By, Tinyptint Fatds, tolkats: | MPG DATE: 08/2026:",
+        "currency": "INR",
+        "context_confirmed": true
+      },
+      "scored": true
+    },
+    {
+      "field": "manufacturing_date",
+      "rule_id": "PCR-R05",
+      "status": "REVIEW",
+      "reason": "A date was detected but its role (manufacturing vs. best-before/use-by) could not be reliably established.",
+      "evidence": {
+        "value": "08/2026",
+        "raw_text": "MPG DATE: 08/2026:",
+        "confidence": 0.593,
+        "bbox": [
+          41,
+          160,
+          192,
+          176
+        ],
+        "image_index": 1,
+        "context": "MRP Rs. 6d | Mf By, Tinyptint Fatds, tolkats: | MPG DATE: 08/2026: | BEST HEPURE! OF 2027 | Consumer Care 1400-558. 666",
+        "date_role": "unclear"
+      },
+      "scored": true
+    },
+    {
+      "field": "consumer_care",
+      "rule_id": "PCR-R06",
+      "status": "FAIL",
+      "reason": "Consumer care details not found.",
+      "evidence": null,
+      "scored": true
+    },
+    {
+      "field": "country_of_origin",
+      "rule_id": "PCR-R07",
+      "status": "REVIEW",
+      "reason": "Import status or country-of-origin evidence is ambiguous.",
+      "evidence": {
+        "value": null,
+        "raw_text": null,
+        "confidence": null,
+        "bbox": null,
+        "image_index": null,
+        "context": null
+      },
+      "scored": true
+    },
+    {
+      "field": "expiry_date",
+      "rule_id": "PCR-R08",
+      "status": "REVIEW",
+      "reason": "A date was detected but its role (manufacturing vs. best-before/use-by) could not be reliably established.",
+      "evidence": {
+        "value": null,
+        "raw_text": null,
+        "confidence": null,
+        "bbox": null,
+        "image_index": null,
+        "context": null,
+        "date_role": null
+      },
+      "scored": true
+    },
+    {
+      "field": "unit_sale_price",
+      "rule_id": "PCR-R09",
+      "status": "REVIEW",
+      "reason": "Applicability or evidence for unit sale price is ambiguous.",
+      "evidence": {
+        "value": null,
+        "raw_text": null,
+        "confidence": null,
+        "bbox": null,
+        "image_index": null,
+        "context": null
+      },
+      "scored": true
+    },
+    {
+      "field": "dimensions",
+      "rule_id": "PCR-R10",
+      "status": "REVIEW",
+      "reason": "Relevance of dimensions to this commodity category is unclear.",
+      "evidence": {
+        "value": null,
+        "raw_text": null,
+        "confidence": null,
+        "bbox": null,
+        "image_index": null,
+        "context": null
+      },
+      "scored": true
+    },
+    {
+      "field": "principal_display_panel_colocation",
+      "rule_id": "PCR-R11",
+      "status": "REVIEW",
+      "reason": "Placement/legibility could not be reliably confirmed from available evidence.",
+      "evidence": {
+        "bbox": null,
+        "nearby_text": null,
+        "context_confirmed": null,
+        "image_geometry": null
+      },
+      "scored": false
+    }
+  ],
+  "score": 0
+}

@@ -1,0 +1,335 @@
+{
+  "declarations": {
+    "manufacturer": {
+      "value": "Goldmunch Foods Pvt Ltd, Pune, Maharashtra",
+      "raw_text": "Mfd By: Goldmunch Foods Pvt Ltd, Pune, Maharashtra",
+      "confidence": 0.945,
+      "bbox": [
+        42,
+        213,
+        683,
+        236
+      ],
+      "image_index": 1,
+      "context": "Net Wt. 250g | MRP: Rs. 45.00 (Incl. of all taxes) | Mfd By: Goldmunch Foods Pvt Ltd, Pune, Maharashtra | MFG DATE: 07/2026 | BEST BEFORE: 07/2027"
+    },
+    "common_name": {
+      "value": null,
+      "raw_text": null,
+      "confidence": null,
+      "bbox": null,
+      "image_index": null,
+      "context": null
+    },
+    "net_quantity": {
+      "value": "250",
+      "raw_text": "Net Wt. 250g",
+      "confidence": 0.95,
+      "bbox": [
+        42,
+        129,
+        205,
+        152
+      ],
+      "image_index": 1,
+      "context": "GOLDMUNCH FOODS | Choco Crunch Biscuits | Net Wt. 250g | MRP: Rs. 45.00 (Incl. of all taxes) | Mfd By: Goldmunch Foods Pvt Ltd, Pune, Maharashtra",
+      "unit": "g",
+      "unit_status": "confirmed_present"
+    },
+    "mrp": {
+      "value": "45.00",
+      "raw_text": "MRP: Rs. 45.00 (Incl. of all taxes)",
+      "confidence": 0.96,
+      "bbox": [
+        42,
+        171,
+        433,
+        192
+      ],
+      "image_index": 1,
+      "context": "Choco Crunch Biscuits | Net Wt. 250g | MRP: Rs. 45.00 (Incl. of all taxes) | Mfd By: Goldmunch Foods Pvt Ltd, Pune, Maharashtra | MFG DATE: 07/2026",
+      "currency": "INR",
+      "context_confirmed": true
+    },
+    "manufacturing_date": {
+      "value": "07/2026",
+      "raw_text": "MFG DATE: 07/2026",
+      "confidence": 0.96,
+      "bbox": [
+        42,
+        255,
+        277,
+        275
+      ],
+      "image_index": 1,
+      "context": "MRP: Rs. 45.00 (Incl. of all taxes) | Mfd By: Goldmunch Foods Pvt Ltd, Pune, Maharashtra | MFG DATE: 07/2026 | BEST BEFORE: 07/2027 | Consumer Care: 1800-123-4567",
+      "date_role": "manufacturing"
+    },
+    "expiry_date": {
+      "value": "07/2027",
+      "raw_text": "BEST BEFORE: 07/2027",
+      "confidence": 0.957,
+      "bbox": [
+        42,
+        297,
+        318,
+        317
+      ],
+      "image_index": 1,
+      "context": "Mfd By: Goldmunch Foods Pvt Ltd, Pune, Maharashtra | MFG DATE: 07/2026 | BEST BEFORE: 07/2027 | Consumer Care: 1800-123-4567 | Country of Origin: India",
+      "date_role": "best_before_use_by"
+    },
+    "consumer_care": {
+      "value": "1800-123-4567",
+      "raw_text": "Consumer Care: 1800-123-4567",
+      "confidence": 0.933,
+      "bbox": [
+        41,
+        339,
+        424,
+        357
+      ],
+      "image_index": 1,
+      "context": "MFG DATE: 07/2026 | BEST BEFORE: 07/2027 | Consumer Care: 1800-123-4567 | Country of Origin: India"
+    },
+    "country_of_origin": {
+      "value": "India",
+      "raw_text": "Country of Origin: India",
+      "confidence": 0.96,
+      "bbox": [
+        41,
+        381,
+        319,
+        404
+      ],
+      "image_index": 1,
+      "context": "BEST BEFORE: 07/2027 | Consumer Care: 1800-123-4567 | Country of Origin: India"
+    },
+    "unit_sale_price": {
+      "value": null,
+      "raw_text": null,
+      "confidence": null,
+      "bbox": null,
+      "image_index": null,
+      "context": null
+    },
+    "dimensions": {
+      "value": null,
+      "raw_text": null,
+      "confidence": null,
+      "bbox": null,
+      "image_index": null,
+      "context": null
+    },
+    "principal_display_panel_colocation": {
+      "bbox": [
+        42,
+        213,
+        683,
+        236
+      ],
+      "nearby_text": "Net Wt. 250g | MRP: Rs. 45.00 (Incl. of all taxes) | Mfd By: Goldmunch Foods Pvt Ltd, Pune, Maharashtra | MFG DATE: 07/2026 | BEST BEFORE: 07/2027",
+      "context_confirmed": null,
+      "image_geometry": null
+    }
+  },
+  "product_context": {
+    "is_imported": false,
+    "may_expire": null,
+    "requires_unit_sale_price": null,
+    "dimensions_relevant": null
+  },
+  "rule_engine_results": [
+    {
+      "field": "manufacturer",
+      "rule_id": "PCR-R01",
+      "status": "PASS",
+      "reason": "Manufacturer/packer/importer details detected.",
+      "evidence": {
+        "value": "Goldmunch Foods Pvt Ltd, Pune, Maharashtra",
+        "raw_text": "Mfd By: Goldmunch Foods Pvt Ltd, Pune, Maharashtra",
+        "confidence": 0.945,
+        "bbox": [
+          42,
+          213,
+          683,
+          236
+        ],
+        "image_index": 1,
+        "context": "Net Wt. 250g | MRP: Rs. 45.00 (Incl. of all taxes) | Mfd By: Goldmunch Foods Pvt Ltd, Pune, Maharashtra | MFG DATE: 07/2026 | BEST BEFORE: 07/2027"
+      },
+      "scored": true
+    },
+    {
+      "field": "common_name",
+      "rule_id": "PCR-R02",
+      "status": "FAIL",
+      "reason": "Commodity name not detected.",
+      "evidence": null,
+      "scored": true
+    },
+    {
+      "field": "net_quantity",
+      "rule_id": "PCR-R03",
+      "status": "PASS",
+      "reason": "Net quantity and valid unit detected.",
+      "evidence": {
+        "value": "250",
+        "raw_text": "Net Wt. 250g",
+        "confidence": 0.95,
+        "bbox": [
+          42,
+          129,
+          205,
+          152
+        ],
+        "image_index": 1,
+        "context": "GOLDMUNCH FOODS | Choco Crunch Biscuits | Net Wt. 250g | MRP: Rs. 45.00 (Incl. of all taxes) | Mfd By: Goldmunch Foods Pvt Ltd, Pune, Maharashtra",
+        "unit": "g",
+        "unit_status": "confirmed_present"
+      },
+      "scored": true
+    },
+    {
+      "field": "mrp",
+      "rule_id": "PCR-R04",
+      "status": "PASS",
+      "reason": "Valid MRP declaration detected.",
+      "evidence": {
+        "value": "45.00",
+        "raw_text": "MRP: Rs. 45.00 (Incl. of all taxes)",
+        "confidence": 0.96,
+        "bbox": [
+          42,
+          171,
+          433,
+          192
+        ],
+        "image_index": 1,
+        "context": "Choco Crunch Biscuits | Net Wt. 250g | MRP: Rs. 45.00 (Incl. of all taxes) | Mfd By: Goldmunch Foods Pvt Ltd, Pune, Maharashtra | MFG DATE: 07/2026",
+        "currency": "INR",
+        "context_confirmed": true
+      },
+      "scored": true
+    },
+    {
+      "field": "manufacturing_date",
+      "rule_id": "PCR-R05",
+      "status": "PASS",
+      "reason": "Manufacturing/packing date detected and confirmed as manufacturing date.",
+      "evidence": {
+        "value": "07/2026",
+        "raw_text": "MFG DATE: 07/2026",
+        "confidence": 0.96,
+        "bbox": [
+          42,
+          255,
+          277,
+          275
+        ],
+        "image_index": 1,
+        "context": "MRP: Rs. 45.00 (Incl. of all taxes) | Mfd By: Goldmunch Foods Pvt Ltd, Pune, Maharashtra | MFG DATE: 07/2026 | BEST BEFORE: 07/2027 | Consumer Care: 1800-123-4567",
+        "date_role": "manufacturing"
+      },
+      "scored": true
+    },
+    {
+      "field": "consumer_care",
+      "rule_id": "PCR-R06",
+      "status": "PASS",
+      "reason": "Consumer care details detected.",
+      "evidence": {
+        "value": "1800-123-4567",
+        "raw_text": "Consumer Care: 1800-123-4567",
+        "confidence": 0.933,
+        "bbox": [
+          41,
+          339,
+          424,
+          357
+        ],
+        "image_index": 1,
+        "context": "MFG DATE: 07/2026 | BEST BEFORE: 07/2027 | Consumer Care: 1800-123-4567 | Country of Origin: India"
+      },
+      "scored": true
+    },
+    {
+      "field": "country_of_origin",
+      "rule_id": "PCR-R07",
+      "status": "N/A",
+      "reason": "Product not identified as imported; requirement does not apply.",
+      "evidence": null,
+      "scored": true
+    },
+    {
+      "field": "expiry_date",
+      "rule_id": "PCR-R08",
+      "status": "REVIEW",
+      "reason": "A date was detected but its role (manufacturing vs. best-before/use-by) could not be reliably established.",
+      "evidence": {
+        "value": "07/2027",
+        "raw_text": "BEST BEFORE: 07/2027",
+        "confidence": 0.957,
+        "bbox": [
+          42,
+          297,
+          318,
+          317
+        ],
+        "image_index": 1,
+        "context": "Mfd By: Goldmunch Foods Pvt Ltd, Pune, Maharashtra | MFG DATE: 07/2026 | BEST BEFORE: 07/2027 | Consumer Care: 1800-123-4567 | Country of Origin: India",
+        "date_role": "best_before_use_by"
+      },
+      "scored": true
+    },
+    {
+      "field": "unit_sale_price",
+      "rule_id": "PCR-R09",
+      "status": "REVIEW",
+      "reason": "Applicability or evidence for unit sale price is ambiguous.",
+      "evidence": {
+        "value": null,
+        "raw_text": null,
+        "confidence": null,
+        "bbox": null,
+        "image_index": null,
+        "context": null
+      },
+      "scored": true
+    },
+    {
+      "field": "dimensions",
+      "rule_id": "PCR-R10",
+      "status": "REVIEW",
+      "reason": "Relevance of dimensions to this commodity category is unclear.",
+      "evidence": {
+        "value": null,
+        "raw_text": null,
+        "confidence": null,
+        "bbox": null,
+        "image_index": null,
+        "context": null
+      },
+      "scored": true
+    },
+    {
+      "field": "principal_display_panel_colocation",
+      "rule_id": "PCR-R11",
+      "status": "REVIEW",
+      "reason": "Placement/legibility could not be reliably confirmed from available evidence.",
+      "evidence": {
+        "bbox": [
+          42,
+          213,
+          683,
+          236
+        ],
+        "nearby_text": "Net Wt. 250g | MRP: Rs. 45.00 (Incl. of all taxes) | Mfd By: Goldmunch Foods Pvt Ltd, Pune, Maharashtra | MFG DATE: 07/2026 | BEST BEFORE: 07/2027",
+        "context_confirmed": null,
+        "image_geometry": null
+      },
+      "scored": false
+    }
+  ],
+  "score": 56
+}

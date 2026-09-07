@@ -1,0 +1,327 @@
+{
+  "declarations": {
+    "manufacturer": {
+      "value": "Blue Valley Dairy Co-op, Anand",
+      "raw_text": "Packed By: Blue Valley Dairy Co-op, Anand",
+      "confidence": 0.957,
+      "bbox": [
+        42,
+        213,
+        549,
+        236
+      ],
+      "image_index": 1,
+      "context": "Net Weight: 500 g | M.R.P Rs. 210 | Packed By: Blue Valley Dairy Co-op, Anand | 06/2027 | Consumer Care 1800-999-1111"
+    },
+    "common_name": {
+      "value": null,
+      "raw_text": null,
+      "confidence": null,
+      "bbox": null,
+      "image_index": null,
+      "context": null
+    },
+    "net_quantity": {
+      "value": "500",
+      "raw_text": "Net Weight: 500 g",
+      "confidence": 0.94,
+      "bbox": [
+        42,
+        129,
+        256,
+        152
+      ],
+      "image_index": 1,
+      "context": "BLUE VALLEY DAIRY | Full Cream Milk Powder | Net Weight: 500 g | M.R.P Rs. 210 | Packed By: Blue Valley Dairy Co-op, Anand",
+      "unit": "g",
+      "unit_status": "confirmed_present"
+    },
+    "mrp": {
+      "value": "210",
+      "raw_text": "M.R.P Rs. 210",
+      "confidence": 0.943,
+      "bbox": [
+        42,
+        171,
+        203,
+        189
+      ],
+      "image_index": 1,
+      "context": "Full Cream Milk Powder | Net Weight: 500 g | M.R.P Rs. 210 | Packed By: Blue Valley Dairy Co-op, Anand | 06/2027",
+      "currency": "INR",
+      "context_confirmed": true
+    },
+    "manufacturing_date": {
+      "value": "06/2027",
+      "raw_text": "06/2027",
+      "confidence": 0.96,
+      "bbox": [
+        42,
+        255,
+        137,
+        275
+      ],
+      "image_index": 1,
+      "context": "M.R.P Rs. 210 | Packed By: Blue Valley Dairy Co-op, Anand | 06/2027 | Consumer Care 1800-999-1111",
+      "date_role": "unclear"
+    },
+    "expiry_date": {
+      "value": null,
+      "raw_text": null,
+      "confidence": null,
+      "bbox": null,
+      "image_index": null,
+      "context": null,
+      "date_role": null
+    },
+    "consumer_care": {
+      "value": "1800-999-1111",
+      "raw_text": "Consumer Care 1800-999-1111",
+      "confidence": 0.92,
+      "bbox": [
+        41,
+        297,
+        416,
+        315
+      ],
+      "image_index": 1,
+      "context": "Packed By: Blue Valley Dairy Co-op, Anand | 06/2027 | Consumer Care 1800-999-1111"
+    },
+    "country_of_origin": {
+      "value": null,
+      "raw_text": null,
+      "confidence": null,
+      "bbox": null,
+      "image_index": null,
+      "context": null
+    },
+    "unit_sale_price": {
+      "value": null,
+      "raw_text": null,
+      "confidence": null,
+      "bbox": null,
+      "image_index": null,
+      "context": null
+    },
+    "dimensions": {
+      "value": null,
+      "raw_text": null,
+      "confidence": null,
+      "bbox": null,
+      "image_index": null,
+      "context": null
+    },
+    "principal_display_panel_colocation": {
+      "bbox": [
+        42,
+        213,
+        549,
+        236
+      ],
+      "nearby_text": "Net Weight: 500 g | M.R.P Rs. 210 | Packed By: Blue Valley Dairy Co-op, Anand | 06/2027 | Consumer Care 1800-999-1111",
+      "context_confirmed": null,
+      "image_geometry": null
+    }
+  },
+  "product_context": {
+    "is_imported": null,
+    "may_expire": null,
+    "requires_unit_sale_price": null,
+    "dimensions_relevant": null
+  },
+  "rule_engine_results": [
+    {
+      "field": "manufacturer",
+      "rule_id": "PCR-R01",
+      "status": "PASS",
+      "reason": "Manufacturer/packer/importer details detected.",
+      "evidence": {
+        "value": "Blue Valley Dairy Co-op, Anand",
+        "raw_text": "Packed By: Blue Valley Dairy Co-op, Anand",
+        "confidence": 0.957,
+        "bbox": [
+          42,
+          213,
+          549,
+          236
+        ],
+        "image_index": 1,
+        "context": "Net Weight: 500 g | M.R.P Rs. 210 | Packed By: Blue Valley Dairy Co-op, Anand | 06/2027 | Consumer Care 1800-999-1111"
+      },
+      "scored": true
+    },
+    {
+      "field": "common_name",
+      "rule_id": "PCR-R02",
+      "status": "FAIL",
+      "reason": "Commodity name not detected.",
+      "evidence": null,
+      "scored": true
+    },
+    {
+      "field": "net_quantity",
+      "rule_id": "PCR-R03",
+      "status": "PASS",
+      "reason": "Net quantity and valid unit detected.",
+      "evidence": {
+        "value": "500",
+        "raw_text": "Net Weight: 500 g",
+        "confidence": 0.94,
+        "bbox": [
+          42,
+          129,
+          256,
+          152
+        ],
+        "image_index": 1,
+        "context": "BLUE VALLEY DAIRY | Full Cream Milk Powder | Net Weight: 500 g | M.R.P Rs. 210 | Packed By: Blue Valley Dairy Co-op, Anand",
+        "unit": "g",
+        "unit_status": "confirmed_present"
+      },
+      "scored": true
+    },
+    {
+      "field": "mrp",
+      "rule_id": "PCR-R04",
+      "status": "PASS",
+      "reason": "Valid MRP declaration detected.",
+      "evidence": {
+        "value": "210",
+        "raw_text": "M.R.P Rs. 210",
+        "confidence": 0.943,
+        "bbox": [
+          42,
+          171,
+          203,
+          189
+        ],
+        "image_index": 1,
+        "context": "Full Cream Milk Powder | Net Weight: 500 g | M.R.P Rs. 210 | Packed By: Blue Valley Dairy Co-op, Anand | 06/2027",
+        "currency": "INR",
+        "context_confirmed": true
+      },
+      "scored": true
+    },
+    {
+      "field": "manufacturing_date",
+      "rule_id": "PCR-R05",
+      "status": "REVIEW",
+      "reason": "A date was detected but its role (manufacturing vs. best-before/use-by) could not be reliably established.",
+      "evidence": {
+        "value": "06/2027",
+        "raw_text": "06/2027",
+        "confidence": 0.96,
+        "bbox": [
+          42,
+          255,
+          137,
+          275
+        ],
+        "image_index": 1,
+        "context": "M.R.P Rs. 210 | Packed By: Blue Valley Dairy Co-op, Anand | 06/2027 | Consumer Care 1800-999-1111",
+        "date_role": "unclear"
+      },
+      "scored": true
+    },
+    {
+      "field": "consumer_care",
+      "rule_id": "PCR-R06",
+      "status": "PASS",
+      "reason": "Consumer care details detected.",
+      "evidence": {
+        "value": "1800-999-1111",
+        "raw_text": "Consumer Care 1800-999-1111",
+        "confidence": 0.92,
+        "bbox": [
+          41,
+          297,
+          416,
+          315
+        ],
+        "image_index": 1,
+        "context": "Packed By: Blue Valley Dairy Co-op, Anand | 06/2027 | Consumer Care 1800-999-1111"
+      },
+      "scored": true
+    },
+    {
+      "field": "country_of_origin",
+      "rule_id": "PCR-R07",
+      "status": "REVIEW",
+      "reason": "Import status or country-of-origin evidence is ambiguous.",
+      "evidence": {
+        "value": null,
+        "raw_text": null,
+        "confidence": null,
+        "bbox": null,
+        "image_index": null,
+        "context": null
+      },
+      "scored": true
+    },
+    {
+      "field": "expiry_date",
+      "rule_id": "PCR-R08",
+      "status": "REVIEW",
+      "reason": "A date was detected but its role (manufacturing vs. best-before/use-by) could not be reliably established.",
+      "evidence": {
+        "value": null,
+        "raw_text": null,
+        "confidence": null,
+        "bbox": null,
+        "image_index": null,
+        "context": null,
+        "date_role": null
+      },
+      "scored": true
+    },
+    {
+      "field": "unit_sale_price",
+      "rule_id": "PCR-R09",
+      "status": "REVIEW",
+      "reason": "Applicability or evidence for unit sale price is ambiguous.",
+      "evidence": {
+        "value": null,
+        "raw_text": null,
+        "confidence": null,
+        "bbox": null,
+        "image_index": null,
+        "context": null
+      },
+      "scored": true
+    },
+    {
+      "field": "dimensions",
+      "rule_id": "PCR-R10",
+      "status": "REVIEW",
+      "reason": "Relevance of dimensions to this commodity category is unclear.",
+      "evidence": {
+        "value": null,
+        "raw_text": null,
+        "confidence": null,
+        "bbox": null,
+        "image_index": null,
+        "context": null
+      },
+      "scored": true
+    },
+    {
+      "field": "principal_display_panel_colocation",
+      "rule_id": "PCR-R11",
+      "status": "REVIEW",
+      "reason": "Placement/legibility could not be reliably confirmed from available evidence.",
+      "evidence": {
+        "bbox": [
+          42,
+          213,
+          549,
+          236
+        ],
+        "nearby_text": "Net Weight: 500 g | M.R.P Rs. 210 | Packed By: Blue Valley Dairy Co-op, Anand | 06/2027 | Consumer Care 1800-999-1111",
+        "context_confirmed": null,
+        "image_geometry": null
+      },
+      "scored": false
+    }
+  ],
+  "score": 40
+}
