@@ -24,6 +24,18 @@ from .ocr_engine import OCRLine
 # --------------------------------------------------------------------------
 
 CURRENCY_SYMBOLS = {"₹": "INR", "rs": "INR", "rs.": "INR", "inr": "INR"}
+def _detect_currency(text: str) -> str:
+    text_lower = text.lower()
+
+    if "₹" in text:
+        return "INR"
+    if "rs." in text_lower or "rs " in text_lower:
+        return "INR"
+    if "inr" in text_lower:
+        return "INR"
+
+    return "INR"
+
 UNIT_ALIASES = {
     "gm": "g", "gms": "g", "grams": "g", "gram": "g",
     "kgs": "kg", "kilograms": "kg",
@@ -81,27 +93,98 @@ _MANUFACTURER_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
-
 def extract_manufacturer(lines: List[OCRLine]) -> dict:
+    candidates = []
+
+    # Collect all explicitly labelled manufacturer candidates.
     for i, line, m in _find_lines_matching(lines, _MANUFACTURER_PATTERN):
         value = m.group(1).strip(" .,")
         if not value:
             continue
-        return _base_evidence(line, value, line.text, _context_window(lines, i))
-    # Label on this line, name/address on the next (common on packed labels).
+
+        candidates.append(
+            (
+                line.confidence if line.confidence is not None else 0.0,
+                i,
+                line,
+                value,
+            )
+        )
+
+    # Look at lines following a standalone "Manufactured by:" label.
+    # OCR often produces several duplicate/noisy versions, so inspect
+    # several following lines and keep the strongest company-looking one.
     label_only = re.compile(
-        r"(?:manufactured\s*by|manufacturer|packed\s*by|packer|imported\s*by|importer)\s*[:.\-]?\s*$",
+        r"(?:manufactured\s*by|manufacturer|marketed\s*by|"
+        r"packed\s*by|packer|packaged\s*by|imported\s*by|importer)"
+        r"\s*[:.\-]?\s*$",
         re.IGNORECASE,
     )
+
+    company_hint = re.compile(
+        r"\b(?:pvt|private|ltd|limited|llp|inc|corp|corporation|"
+        r"industries|foods|food|enterprises|company|co\.?)\b",
+        re.IGNORECASE,
+    )
+
     for i, line in enumerate(lines):
-        if label_only.search(line.text) and i + 1 < len(lines):
-            value = lines[i + 1].text.strip(" .,")
-            if value:
-                ev = _base_evidence(lines[i + 1], value, f"{line.text} {value}", _context_window(lines, i))
-                return ev
+        if not label_only.search(line.text):
+            continue
+
+        # Inspect the next few OCR lines because duplicate OCR variants
+        # may appear before the clean line.
+        for j in range(i + 1, min(i + 6, len(lines))):
+            candidate_line = lines[j]
+            value = candidate_line.text.strip(" .,")
+            if not value:
+                continue
+
+            # Stop if another major declaration has started.
+            lowered = value.lower()
+            if any(marker in lowered for marker in (
+                "customer care",
+                "net qty",
+                "mrp",
+                "best before",
+                "use by",
+            )):
+                break
+
+            confidence = (
+                candidate_line.confidence
+                if candidate_line.confidence is not None
+                else 0.0
+            )
+
+            # Strong preference for company-like names.
+            company_score = 1 if company_hint.search(value) else 0
+
+            candidates.append(
+                (
+                    company_score,
+                    confidence,
+                    j,
+                    candidate_line,
+                    value,
+                    line.text,
+                )
+            )
+
+    if candidates:
+        # Prefer company-looking text first, then confidence.
+        best = max(candidates, key=lambda x: (x[0], x[1]))
+
+        _, _, value_index, value_line, value, label = best
+
+        return _base_evidence(
+            value_line,
+            value,
+            f"{label} {value}",
+            _context_window(lines, value_index),
+        )
+
     return _empty_evidence()
-
-
+    
 # --------------------------------------------------------------------------
 # common_name (PCR-R02)
 # --------------------------------------------------------------------------
@@ -133,10 +216,41 @@ _COMMON_NAME_PATTERN = re.compile(
 
 
 def extract_common_name(lines: List[OCRLine]) -> dict:
+    # First prefer explicitly labelled commodity/product names.
     for i, line, m in _find_lines_matching(lines, _COMMON_NAME_PATTERN):
         value = m.group(1).strip(" .,")
         if value:
             return _base_evidence(line, value, line.text, _context_window(lines, i))
+
+    # Fallback for packs where the commodity name is displayed without a label.
+    # Prefer a short, high-confidence uppercase/title-like line near the top.
+    candidates = []
+
+    for i, line in enumerate(lines):
+        text = line.text.strip(" .,")
+        if not text:
+            continue
+
+        if line.confidence is None or line.confidence < 0.75:
+            continue
+
+        # Ignore obvious declarations and non-product information.
+        lowered = text.lower()
+        if any(keyword in lowered for keyword in (
+            "mrp", "net qty", "manufactured", "customer care",
+            "care@", "rs.", "inr", "best before", "use by"
+        )):
+            continue
+
+        # Product-name fallback: short text, generally near the top,
+        # containing letters and not looking like an address/sentence.
+        if i <= 10 and len(text) <= 40 and re.search(r"[A-Za-z]", text):
+            candidates.append((line.confidence, i, line, text))
+
+    if candidates:
+        _, i, line, value = max(candidates, key=lambda x: x[0])
+        return _base_evidence(line, value, line.text, _context_window(lines, i))
+
     return _empty_evidence()
 
 
@@ -302,67 +416,73 @@ def _plausible_price_amount(amount: str) -> bool:
         return False
     return True
 
+_MRP_AMOUNT_PATTERN = re.compile(
+    r"(?:mrp|m\.r\.p\.?|maximum\s+retail\s+price)\s*[:\s&-]*"
+    r"(?:rs\.?|inr|₹)?\s*([\d,]+(?:\.\d{1,2})?)",
+    re.IGNORECASE,
+)
+
+_BARE_CURRENCY_PRICE_PATTERN = re.compile(
+    r"(?:rs\.?|inr|₹)\s*([\d,]+(?:\.\d{1,2})?)",
+    re.IGNORECASE,
+)
 
 def extract_mrp(lines: List[OCRLine]) -> dict:
-    mrp_hits, price_hits = [], []
+    mrp_hits, bare_hits = [], []
 
-    for i, line, m in _find_lines_matching(lines, _MRP_PATTERN):
-        if _plausible_price_amount(m.group(2)):
-            mrp_hits.append((i, line, m.group(1), m.group(2)))
-    mrp_indices = {i for i, _, _, _ in mrp_hits}
+    for i, line in enumerate(lines):
+        if _USP_PATTERN.search(line.text):
+            continue  # "Unit Sale Price" lines contain the word "price" too - not MRP
 
-    seen_price_idx = set()
-    # Explicit "PRICE" label candidates (lines already claimed by the more
-    # specific MRP pattern above are not reconsidered here).
-    for i, line, m in _find_lines_matching(lines, _PRICE_LABEL_PATTERN):
-        if i in mrp_indices or i in seen_price_idx:
+        m = _MRP_AMOUNT_PATTERN.search(line.text)
+        if m:
+            mrp_hits.append((i, line, m.group(1)))
             continue
-        if _USP_LINE.search(line.text) or _NON_MRP_PRICE_CONTEXT.search(line.text):
-            continue
-        if not _plausible_price_amount(m.group(2)):
-            continue
-        price_hits.append((i, line, m.group(1), m.group(2)))
-        seen_price_idx.add(i)
 
-    # Bare currency-symbol amounts, same de-dup rules.
-    for i, line, m in _find_lines_matching(lines, _GENERIC_PRICE_PATTERN):
-        if i in mrp_indices or i in seen_price_idx:
-            continue
-        if _USP_LINE.search(line.text) or _NON_MRP_PRICE_CONTEXT.search(line.text):
-            continue
-        if not _plausible_price_amount(m.group(2)):
-            continue
-        price_hits.append((i, line, m.group(1), m.group(2)))
-        seen_price_idx.add(i)
+        m2 = _BARE_CURRENCY_PRICE_PATTERN.search(line.text)
+        if m2:
+            bare_hits.append((i, line, m2.group(1)))
 
     if mrp_hits:
-        i, line, currency_sym, amount = mrp_hits[0]
-        evidence = _base_evidence(line, amount.replace(",", ""), line.text, _context_window(lines, i))
-        evidence["currency"] = CURRENCY_SYMBOLS.get((currency_sym or "").lower(), "INR")
-        # explicitly labelled "MRP" -> confident even if other prices exist elsewhere
+        i, line, amount = mrp_hits[0]
+        evidence = _base_evidence(
+            line,
+            amount.replace(",", ""),
+            line.text,
+            _context_window(lines, i),
+        )
+        evidence["currency"] = _detect_currency(line.text)
         evidence["context_confirmed"] = True
         return evidence
 
-    if len(price_hits) == 1:
-        i, line, currency_sym, amount = price_hits[0]
-        evidence = _base_evidence(line, amount.replace(",", ""), line.text, _context_window(lines, i))
-        evidence["currency"] = CURRENCY_SYMBOLS.get((currency_sym or "").lower(), "INR")
+    if len(bare_hits) == 1:
+        i, line, amount = bare_hits[0]
+        evidence = _base_evidence(
+            line,
+            amount.replace(",", ""),
+            line.text,
+            _context_window(lines, i),
+        )
+        evidence["currency"] = _detect_currency(line.text)
         evidence["context_confirmed"] = True
         return evidence
 
-    if len(price_hits) > 1:
-        # Multiple price-like values, none explicitly labelled MRP: per the
-        # handoff doc, send the best candidate with context_confirmed=False
-        # rather than guessing which one is MRP.
-        i, line, currency_sym, amount = price_hits[0]
-        evidence = _base_evidence(line, amount.replace(",", ""), line.text, _context_window(lines, i))
-        evidence["currency"] = CURRENCY_SYMBOLS.get((currency_sym or "").lower(), "INR")
+    if len(bare_hits) > 1:
+        # Multiple unlabelled prices, none of them tagged MRP/PRICE/RATE:
+        # report the best candidate with context_confirmed=False rather
+        # than guessing which one is MRP.
+        i, line, amount = bare_hits[0]
+        evidence = _base_evidence(
+            line,
+            amount.replace(",", ""),
+            line.text,
+            _context_window(lines, i),
+        )
+        evidence["currency"] = _detect_currency(line.text)
         evidence["context_confirmed"] = False
         return evidence
 
     return _empty_evidence()
-
-
 # --------------------------------------------------------------------------
 # manufacturing_date / expiry_date (PCR-R05 / PCR-R08) — UNCHANGED
 # --------------------------------------------------------------------------
