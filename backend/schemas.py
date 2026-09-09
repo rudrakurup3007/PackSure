@@ -125,6 +125,15 @@ class UnitStatus(str, Enum):
     CONFIRMED_ABSENT = "confirmed_absent"
     AMBIGUOUS = "ambiguous"
     CONFIRMED_PRESENT = "confirmed_present"
+    # Set by field_extractors.py when a unit was RECONSTRUCTED from a
+    # suspected OCR misread (e.g. "400g" read back as "4009", trailing digit
+    # reversed to "g") rather than actually read off the pack.
+    # rule_engine.py checks for this exact value to force net_quantity to
+    # REVIEW instead of a silent PASS on a guessed character. Without this
+    # enum member, that value fails Pydantic validation and
+    # StructuredDeclarations.model_validate() raises, turning the whole
+    # /scan request into a 500 instead of a REVIEW on one field.
+    OCR_CORRECTED = "ocr_corrected"
 
 
 # ============================================================================
@@ -254,6 +263,37 @@ class DeclarationField(BaseModel):
     )
     date_role: Optional[DateRole] = Field(
         None, description="Used by: manufacturing_date, expiry_date. See DateRole docstring."
+    )
+    origin_conflict: Optional[bool] = Field(
+        None,
+        description=(
+            "Used by: country_of_origin only. Set True by field_extractors.py when a pack "
+            "declares an origin AND names an importer that disagrees with it (e.g. 'Made in "
+            "India' next to 'Imported by ABC Pvt Ltd'). rule_engine.py checks this on every "
+            "validation type to force REVIEW even when the field otherwise validates cleanly. "
+            "Without this declared field, extra=\"ignore\" silently drops it during "
+            "StructuredDeclarations.model_validate(), and the rule_engine.py check can never "
+            "fire in production."
+        ),
+    )
+    inferred: Optional[bool] = Field(
+        None,
+        description=(
+            "Used by: common_name and the two date fields. Set True by field_extractors.py "
+            "when the date roles were assigned by CHRONOLOGY (of two unlabelled dates, "
+            "the earlier is the manufacturing date and the later the expiry) rather than "
+            "read off an MFG/EXP label - or, for common_name, when the value "
+            "came from visual prominence (largest text on the panel) rather than from an "
+            "explicit label or a commodity descriptor - i.e. the pack never declares a "
+            "common name in a field we can point at, and this is the extractor's best "
+            "reading of the product name off the front panel. rule_engine.py must route "
+            "this to REVIEW rather than PASS: a prominent brand or marketing line can win "
+            "this tier, and a guessed common name reported as a clean PASS is exactly the "
+            "confident-wrong result the evidence contract exists to prevent. Declared here "
+            "because extra=\"ignore\" would otherwise silently drop it during "
+            "StructuredDeclarations.model_validate(), leaving the guess indistinguishable "
+            "from a labelled declaration."
+        ),
     )
 
 

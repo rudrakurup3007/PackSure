@@ -66,7 +66,7 @@ from typing import List, Optional
 from dateutil import parser as dateutil_parser
 from rapidfuzz import fuzz
 
-from .ocr_engine import OCRLine
+from .ocr_engine import OCRLine, _COLUMN_GAP_RATIO
 
 # --------------------------------------------------------------------------
 # Shared helpers
@@ -283,6 +283,116 @@ def _following_lines(lines: List[OCRLine], idx: int, count: int):
     _, end = _image_bounds(lines, idx)
     for j in range(idx + 1, min(idx + 1 + count, end)):
         yield j, lines[j]
+
+
+# --------------------------------------------------------------------------
+# Geometric label -> value pairing
+# --------------------------------------------------------------------------
+# Until now, "the value belonging to this label" meant "the next line in the
+# list". That is only true for a single-column layout. Indian packaging
+# routinely prints a declarations TABLE - labels stacked in a left column,
+# values in a right column - and after line assembly those become separate
+# OCRLines whose list order interleaves by y-coordinate:
+#
+#     MFG. DATE:        31JUL2026          list order:  MFG. DATE:
+#     BATCH NO.:        K26G69149                       31JUL2026
+#     USE BY            30JAN2027                       BATCH NO.:
+#                                                       K26G69149  ...
+#
+# List adjacency happens to work there, but only by luck of the y-sort; on
+# any pack where the two columns are vertically offset it pairs each label
+# with the wrong row's value. And a label whose value sits to its RIGHT is
+# invisible to a "next line" search whenever another row intervenes.
+#
+# The bounding boxes needed to do this properly were already being carried
+# on every OCRLine and simply thrown away. These helpers use them: a label's
+# value is the line that is either
+#   (a) on the same visual ROW and to the right of it, or
+#   (b) directly BELOW it and horizontally aligned with it,
+# whichever is geometrically closer, measured in units of text height so the
+# thresholds are resolution-independent.
+#
+# When geometry yields nothing confident - degenerate or missing boxes, or a
+# label with no plausible neighbour - the search falls back to the previous
+# list-order behaviour, so this can only add associations, never remove ones
+# that already worked.
+
+# All expressed as multiples of the larger of the two lines' text heights.
+_ROW_ALIGN_RATIO = 0.6      # vertical centre offset still counting as "same row"
+_MAX_RIGHT_GAP_RATIO = 4.0  # how far right a value may sit from its label
+_MAX_BELOW_GAP_RATIO = 2.0  # how far below (tighter: rows stack closely)
+_EDGE_TOLERANCE_RATIO = 0.25
+
+
+def _geometric_value_candidates(lines: List[OCRLine], idx: int, limit: int):
+    """Lines that could plausibly be the value for the label at `idx`,
+    nearest first. Image-bounded (P1) via _image_bounds."""
+    if not lines:
+        return []
+    start, end = _image_bounds(lines, idx)
+    label = lines[idx]
+    lx0, ly0, lx1, ly1 = label.bbox
+    label_h = max(1, ly1 - ly0)
+    label_cy = (ly0 + ly1) / 2.0
+
+    scored = []
+    for j in range(start, end):
+        if j == idx:
+            continue
+        cand = lines[j]
+        cx0, cy0, cx1, cy1 = cand.bbox
+        cand_h = max(1, cy1 - cy0)
+        h = float(max(label_h, cand_h))
+        edge = _EDGE_TOLERANCE_RATIO * h
+
+        # (a) same row, to the right - the table-row case.
+        if cx0 >= lx1 - edge and abs((cy0 + cy1) / 2.0 - label_cy) <= _ROW_ALIGN_RATIO * h:
+            gap = (cx0 - lx1) / h
+            if gap <= _MAX_RIGHT_GAP_RATIO:
+                # direction 0 sorts before 1, so a same-row value wins an
+                # exact tie against one below - a label reads rightward first.
+                scored.append((round(gap, 3), 0, j))
+                continue
+
+        # (b) below and horizontally aligned - the stacked-label case.
+        if cy0 >= ly1 - edge:
+            overlaps = min(cx1, lx1) - max(cx0, lx0) > 0
+            left_aligned = abs(cx0 - lx0) <= h
+            if overlaps or left_aligned:
+                gap = (cy0 - ly1) / h
+                if gap <= _MAX_BELOW_GAP_RATIO:
+                    scored.append((round(gap, 3), 1, j))
+
+    scored.sort()
+    return [(j, lines[j]) for _, _, j in scored[:limit]]
+
+
+def _has_usable_geometry(lines: List[OCRLine], idx: int) -> bool:
+    """True when the lines around `idx` carry real, distinguishable boxes.
+
+    Callers that construct OCRLines without meaningful geometry (fixtures,
+    a future OCR backend that does not report boxes, an upstream stage that
+    stubs them) leave every box identical. Geometry cannot decide anything
+    there, so those callers keep the old list-order behaviour.
+    """
+    start, end = _image_bounds(lines, idx)
+    reference = lines[idx].bbox
+    return any(lines[j].bbox != reference for j in range(start, end) if j != idx)
+
+
+def _value_candidates(lines: List[OCRLine], idx: int, count: int):
+    """Ordered (index, line) pairs to try as the value for a label line.
+
+    When the boxes are real, geometry is AUTHORITATIVE - including its
+    negative answer. An earlier version fell back to list order whenever
+    geometry returned nothing, which quietly defeated the distance limits:
+    a label at the top of the pack would still be paired with an unrelated
+    line far below it, exactly the association this was written to stop.
+    The fallback now applies only when there is no geometry to reason with.
+    """
+    if _has_usable_geometry(lines, idx):
+        return _geometric_value_candidates(lines, idx, limit=count)
+    return list(_following_lines(lines, idx, count))
 
 
 def _context_window(lines: List[OCRLine], center_idx: int, radius: int = 2) -> str:
@@ -546,7 +656,7 @@ def extract_manufacturer(lines: List[OCRLine]) -> dict:
         # lines[i + 1] off the flat list would let a bare "MANUFACTURED
         # FOR:" at the bottom of image 1 take its value from the top of
         # image 2, and the resulting bbox would point at the wrong photo.
-        for j, candidate_line in _following_lines(lines, i, 5):
+        for j, candidate_line in _value_candidates(lines, i, 5):
             value = candidate_line.text.strip(" .,")
             if not value:
                 continue
@@ -664,28 +774,54 @@ _COMMON_NAME_PATTERN = re.compile(
 # a reviewer (and the rule engine) can tell it from a cleanly labelled
 # declaration.
 _COMMODITY_DESCRIPTORS = {
-    # snacks / namkeen
+    # --- snacks / namkeen ---
     "snack", "snacks", "namkeen", "bhel", "bhelpuri", "chips", "wafers",
-    "mixture", "sev", "chivda", "papad", "nuts", "cashew", "almond",
-    "peanut", "peanuts", "makhana",
-    # bakery / cereal
+    "mixture", "sev", "chivda", "papad", "papadum", "bhujia", "murukku",
+    "khakhra", "mathri", "chakli", "farsan", "nachos", "popcorn", "makhana",
+    "puffs", "kurkure", "fryums",
+    # --- nuts / dry fruit ---
+    "nuts", "cashew", "cashews", "almond", "almonds", "pistachio", "raisin",
+    "raisins", "walnut", "walnuts", "peanut", "peanuts", "dryfruit",
+    # --- bakery / cereal ---
     "biscuit", "biscuits", "cookie", "cookies", "cracker", "crackers",
-    "bread", "rusk", "cake", "cereal", "oats", "noodles", "pasta", "vermicelli",
-    # staples
-    "atta", "flour", "maida", "rice", "dal", "pulses", "sugar", "salt",
-    "poha", "suji", "rava", "besan",
-    # dairy / beverages
-    "milk", "curd", "paneer", "butter", "ghee", "cheese", "tea", "coffee",
-    "juice", "beverage", "drink", "water", "soda",
-    # condiments
-    "oil", "masala", "spice", "spices", "pickle", "chutney", "sauce",
-    "ketchup", "jam", "honey", "powder", "paste",
-    # confectionery
-    "chocolate", "candy", "toffee", "sweets", "mithai", "icecream",
-    # common non-food packaged commodities
-    "soap", "detergent", "shampoo", "toothpaste", "handwash", "sanitizer",
-    "lotion", "cream", "oilcake", "incense", "agarbatti",
+    "bread", "bun", "rusk", "toast", "cake", "pastry", "muffin", "cereal",
+    "cornflakes", "oats", "muesli", "granola", "noodles", "pasta", "macaroni",
+    "vermicelli", "seviyan", "thepla", "roti", "chapati", "paratha", "khari",
+    # --- staples ---
+    "atta", "flour", "maida", "sooji", "suji", "rava", "besan", "rice",
+    "basmati", "poha", "dal", "daal", "pulses", "lentil", "lentils", "chana",
+    "rajma", "sugar", "jaggery", "gur", "salt", "sabudana", "millet", "ragi",
+    # --- dairy / beverages ---
+    "milk", "curd", "dahi", "yoghurt", "yogurt", "paneer", "butter", "ghee",
+    "cheese", "cream", "lassi", "buttermilk", "tea", "coffee", "juice",
+    "beverage", "drink", "squash", "syrup", "water", "soda", "cocoa",
+    # --- condiments / cooking ---
+    "oil", "masala", "spice", "spices", "haldi", "turmeric", "chilli",
+    "jeera", "dhania", "pickle", "achar", "chutney", "sauce", "ketchup",
+    "vinegar", "jam", "honey", "powder", "paste", "seasoning", "mix",
+    # --- confectionery ---
+    "chocolate", "candy", "toffee", "lollipop", "sweets", "mithai", "barfi",
+    "laddu", "halwa", "papdi", "soanpapdi", "gulab", "jamun", "icecream",
+    "dessert", "wafer",
+    # --- ready to eat / frozen ---
+    "curry", "gravy", "soup", "instant", "readytoeat", "frozen", "pizza",
+    "samosa", "nugget", "nuggets", "patty",
+    # --- personal / home care (non-food packaged commodities) ---
+    "soap", "detergent", "powder", "liquid", "shampoo", "conditioner",
+    "toothpaste", "toothbrush", "handwash", "sanitizer", "lotion", "moisturiser",
+    "moisturizer", "talc", "deodorant", "perfume", "bar", "gel", "wash",
+    "cleaner", "phenyl", "freshener", "incense", "agarbatti", "dhoop",
+    "tissue", "napkin", "diaper", "wipes",
 }
+
+# Descriptor tokens short enough that a fuzzy match would be unsafe are
+# required to match exactly. At four characters or fewer a single edit turns
+# one real word into another ("salt"/"malt", "rice"/"ride", "oil"/"oik"), so
+# fuzziness there buys recall at the cost of nonsense.
+_MIN_FUZZY_DESCRIPTOR_LEN = 5
+
+_LONG_DESCRIPTORS = sorted(d for d in _COMMODITY_DESCRIPTORS
+                           if len(d) >= _MIN_FUZZY_DESCRIPTOR_LEN)
 
 # Lines that contain descriptor words but are a different declaration.
 # An ingredients list is the big one: Monaco's begins "WHEAT FLOUR, EDIBLE
@@ -702,10 +838,62 @@ _NOT_A_DESCRIPTOR_LINE = re.compile(
 _MAX_DESCRIPTOR_LINE_LEN = 60
 
 
+def _is_subsequence(short: str, long_word: str) -> bool:
+    """True when `short` is `long_word` with characters removed, in order."""
+    it = iter(long_word)
+    return all(ch in it for ch in short)
+
+
+def _match_descriptor(token: str) -> Optional[str]:
+    """Returns the vocabulary word a token represents, or None.
+
+    Exact match first, then a bounded edit-distance match for longer words.
+    OCR garbles descriptor words constantly - "namkeen" comes back as
+    "namkeeh", "bhelpuri" as "bhelpunri", "biscuits" as "biscults",
+    "snack" as "snak" - and an exact-only lookup fails on precisely the
+    packs where it is most needed. This is the same tolerance already
+    applied to units (_normalize_unit_fuzzy) and labels
+    (_fuzzy_label_match), for the same reason.
+
+    The edit budget scales with word length so that a short word cannot be
+    stretched into a different one: one edit for 5-7 characters, two for
+    8 or more.
+    """
+    if token in _COMMODITY_DESCRIPTORS:
+        return token
+    if len(token) < _MIN_FUZZY_DESCRIPTOR_LEN:
+        # Below the fuzzy floor, allow ONE specific correction: a dropped
+        # character. "snak" -> "snack", "chps" -> "chips". A dropped letter
+        # is the single most common OCR failure on small print, and because
+        # the token must be a subsequence of a LONGER vocabulary word it
+        # cannot turn one real word into another: "care" and "cake" are the
+        # same length, so this rule never relates them. Substitutions in
+        # short tokens ("nufs" for "nuts") stay unmatched - correcting those
+        # safely is not possible at four characters.
+        if len(token) >= 4:
+            for word in _LONG_DESCRIPTORS:
+                if len(word) == len(token) + 1 and _is_subsequence(token, word):
+                    return word
+        return None
+
+    budget = 1 if len(token) <= 7 else 2
+    for word in _LONG_DESCRIPTORS:
+        # Cheap length prefilter before the O(n*m) distance computation.
+        if abs(len(word) - len(token)) > budget:
+            continue
+        if _levenshtein(token, word) <= budget:
+            return word
+    return None
+
+
 def _descriptor_score(text: str) -> int:
     """Number of distinct commodity descriptor words present in a line."""
-    tokens = set(re.findall(r"[a-z]+", text.lower()))
-    return len(tokens & _COMMODITY_DESCRIPTORS)
+    matched = set()
+    for token in set(re.findall(r"[a-z]+", text.lower())):
+        word = _match_descriptor(token)
+        if word:
+            matched.add(word)
+    return len(matched)
 
 
 def extract_common_name(lines: List[OCRLine]) -> dict:
@@ -742,7 +930,7 @@ def extract_common_name(lines: List[OCRLine]) -> dict:
 
         # PROBLEM 1: image-bounded. A "Product Name:" label at the end of
         # one photo must not take its value from the start of the next.
-        for j, candidate in _following_lines(lines, i, 2):
+        for j, candidate in _value_candidates(lines, i, 2):
             if not _readable(candidate):
                 continue
             value = candidate.text.strip(" .,")
@@ -795,7 +983,331 @@ def extract_common_name(lines: List[OCRLine]) -> dict:
         evidence["partial"] = True
         return evidence
 
-    return _empty_evidence()
+    return _visually_prominent_name(lines)
+
+
+# --------------------------------------------------------------------------
+# Tier 3: visual prominence
+# --------------------------------------------------------------------------
+# Tiers 1 and 2 both need the pack to SAY something: a label, or a word in
+# the commodity vocabulary. Plenty of packs do neither. "PINEAPPLE DELIGHT"
+# across the front of a juice carton is the product name to every human who
+# looks at it, but it carries no label and "delight" is not a commodity
+# noun, so both tiers return nothing and the field comes back null.
+#
+# This tier is deliberately quarantined from the two above. It reads font
+# size (via box height) and position, which extract_common_name's own
+# contract otherwise forbids, so everything it produces is marked
+# inferred=True and must reach the reviewer as REVIEW, never PASS. It is a
+# reading aid, not a declaration.
+
+# --------------------------------------------------------------------------
+# Scoring weights. Every geometric feature is normalised against the panel
+# itself (median text height, the image's own extent), never against a pixel
+# constant, so the same weights hold across resolutions and camera distances.
+_W_FONT_SIZE = 3.0            # relative height - the strongest single signal
+_W_POSITION = 1.0            # prominence of the region it sits in
+_W_CONFIDENCE = 0.8          # supporting only; never decides on its own
+_W_SEMANTIC = 2.5            # names a commodity -> product name, not brand
+_W_LENGTH = 0.8              # short phrase, not a sentence
+_W_FRONT_PANEL = 1.2         # front-facing panel over a dense back panel
+_W_REPEAT = 0.6              # same text seen on more than one panel
+_P_NUMERIC = 2.0             # digit-heavy
+_P_SYMBOL = 1.5              # symbol-heavy
+_P_SENTENCE = 2.5            # sentence-like structure
+_P_INGREDIENT = 2.5          # comma-separated list
+_P_MARKETING = 3.0           # claims and promotional copy
+
+_PROMINENCE_RATIO = 1.25      # floor: below this it is body text, not a name
+_MIN_PROMINENT_CHARS = 3
+_MAX_PROMINENT_CHARS = 45
+_MIN_PROMINENT_CONFIDENCE = 0.55
+_MIN_NAME_SCORE = 2.0         # below this, return null rather than guess
+_LINE_JOIN_HEIGHT_TOLERANCE = 0.25   # heights within 25% belong to one phrase
+_LINE_JOIN_GAP_RATIO = 0.8           # vertical gap, as a multiple of height
+
+# Large text that is emphatically NOT the product name. Marketing claims and
+# certifications are printed at display size precisely to be noticed, so
+# height alone would rank them first on a lot of packs.
+_MARKETING_CLAIM = re.compile(
+    r"\b(new|free|now|save|offer|combo|extra|more|best|premium|special|"
+    r"original|classic|pure|natural|fresh|organic|no\s+added|sugar\s*free|"
+    r"gluten\s*free|low\s*fat|fat\s*free|rich\s+in|made\s+with|goodness|"
+    r"enriched|fortified|\d+\s*%|buy\s*\d|push\s*straw|tear\s+here|"
+    r"open\s+here|shake\s+well|serve\s+chilled|keep\s+refrigerated)\b",
+    re.IGNORECASE,
+)
+
+# HARD EXCLUSIONS - a candidate matching any of these is never scored.
+# Regulatory declarations, contact details, codes, prices, dates.
+_NAME_EXCLUSION = re.compile(
+    r"\b(ingredients?|directions?|warning|caution|dosage|composition|"
+    r"storage|nutrition(?:al)?\s*(?:facts|information)?|allergen|"
+    r"manufactured|marketed|packed\s*by|imported|distributed|"
+    r"net\s*(?:wt|weight|qty|quantity)|m\.?r\.?p|maximum\s+retail|"
+    r"batch|lot\s*no|mfg|mfd|exp(?:iry)?|best\s*before|use\s*by|"
+    r"fssai|licence|license|gstin|customer\s*care|consumer\s*care)\b"
+    r"|[\w.+-]+@[\w-]+\.\w+"                       # email
+    r"|\b(?:www\.|https?://)\S+"                    # website
+    r"|\b\d{6}\b"                                   # PIN code
+    r"|\+?\d[\d\s\-]{8,}\d"                        # phone
+    r"|\b\d{8,}\b"                                  # barcode / licence digits
+    r"|\b(?:rs\.?|inr|₹)\s*[\d,]+"                  # price
+    r"|\b\d+(?:\.\d+)?\s*(?:g|gm|kg|mg|ml|l|ltr)\b"  # quantity
+    r"|\b\d{1,2}\s*[/\-.]\s*\d{1,2}\s*[/\-.]\s*\d{2,4}\b",   # date
+    re.IGNORECASE,
+)
+
+# Instruction copy: "Store in a cool dry place", "Shake well before use".
+_INSTRUCTION_OPENER = re.compile(
+    r"^(use|apply|store|mix|shake|take|keep|refrigerate|consume|serve|"
+    r"dissolve|add|pour|wash|rinse|dispose|read|see)\b",
+    re.IGNORECASE,
+)
+
+# Sentence-like structure: function words that belong to prose, not to a
+# name. "Store in a cool and dry place" has three; "Almond Milk" has none.
+_SENTENCE_MARKER = re.compile(
+    r"\b(in|on|at|for|with|from|and|or|the|a|an|of|to|be|is|are|not|"
+    r"before|after|per|may|should|must|do|does)\b",
+    re.IGNORECASE,
+)
+
+# A random alphanumeric run (BATCH A7F29X, SP7919H27D26): letters and digits
+# interleaved inside one token, with no vowel pattern of a real word.
+_CODE_TOKEN = re.compile(r"^(?=\S*\d)(?=\S*[A-Za-z])[A-Za-z0-9]{5,}$")
+
+
+def _normalise_name(text: str) -> str:
+    return re.sub(r"[^a-z0-9]+", " ", text.lower()).strip()
+
+
+def _join_connected_lines(lines: List[OCRLine]) -> List[OCRLine]:
+    """Combines OCR boxes that form ONE visually connected phrase.
+
+    A two-line product name ("PINEAPPLE" above "DELIGHT", or a brand set
+    over its descriptor) arrives as separate OCRLines. Classified
+    separately, each half is a weaker candidate than the whole, and the
+    returned value is half a name.
+
+    Joined only when the lines are set in the SAME SIZE (heights within
+    _LINE_JOIN_HEIGHT_TOLERANCE), sit within _LINE_JOIN_GAP_RATIO of a text
+    height of each other, overlap horizontally, and share an image - i.e.
+    they are typographically one block. A descriptor set smaller than the
+    brand above it is a different size and stays a separate candidate,
+    which is what lets the brand-vs-name rule below see both.
+    """
+    joined: List[OCRLine] = []
+    for line in sorted(lines, key=lambda l: (l.image_index, l.bbox[1], l.bbox[0])):
+        host = joined[-1] if joined else None
+        if host is not None and host.image_index == line.image_index:
+            h_host, h_line = _text_height(host), _text_height(line)
+            similar = abs(h_host - h_line) <= _LINE_JOIN_HEIGHT_TOLERANCE * max(h_host, h_line)
+            gap = line.bbox[1] - host.bbox[3]
+            close = -h_line <= gap <= _LINE_JOIN_GAP_RATIO * min(h_host, h_line)
+            overlapping = min(host.bbox[2], line.bbox[2]) > max(host.bbox[0], line.bbox[0])
+            if similar and close and overlapping:
+                confidences = [c for c in (host.confidence, line.confidence)
+                               if c is not None]
+                joined[-1] = OCRLine(
+                    text=f"{host.text} {line.text}",
+                    bbox=[min(host.bbox[0], line.bbox[0]), min(host.bbox[1], line.bbox[1]),
+                          max(host.bbox[2], line.bbox[2]), max(host.bbox[3], line.bbox[3])],
+                    confidence=round(sum(confidences) / len(confidences), 3)
+                    if confidences else None,
+                    image_index=host.image_index,
+                    words=list(host.words) + list(line.words),
+                    row_index=host.row_index,
+                    column_index=host.column_index,
+                )
+                continue
+        joined.append(line)
+    return joined
+
+
+def _panel_prominence(lines: List[OCRLine]) -> dict:
+    """Per-image score for "this looks like the front panel": tall text and
+    little regulatory copy. A back panel is dense small print."""
+    by_image: dict = {}
+    for line in lines:
+        by_image.setdefault(line.image_index, []).append(line)
+    scores = {}
+    for image_index, group in by_image.items():
+        heights = sorted(_text_height(l) for l in group)
+        median = heights[len(heights) // 2] or 1
+        tallest = heights[-1] / median
+        regulatory = sum(1 for l in group if _NAME_EXCLUSION.search(l.text))
+        density = regulatory / max(1, len(group))
+        scores[image_index] = tallest * (1.0 - density)
+    top = max(scores.values()) if scores else 1.0
+    return {k: v / top for k, v in scores.items()} if top else scores
+
+
+def _name_candidate_score(line: OCRLine, text: str, median_height: float,
+                          bounds: tuple, panel: float, repeats: int) -> Optional[dict]:
+    """Scores one candidate. Returns None for a hard exclusion, otherwise a
+    breakdown dict - the per-feature values are what the debug log prints."""
+    if not (_MIN_PROMINENT_CHARS <= len(text) <= _MAX_PROMINENT_CHARS):
+        return None
+    confidence = line.confidence if line.confidence is not None else 0.0
+    if confidence < _MIN_PROMINENT_CONFIDENCE:
+        return None
+    # Strict label patterns only, NOT _is_known_label: that one falls back
+    # to fuzzy matching, which scored the brand "MONSTER" as a declaration
+    # label and excluded it before it could be ranked. Fuzzy matching earns
+    # its place when recovering a corrupted label; used as an exclusion it
+    # silently deletes brand names.
+    if any(pattern.search(text) for pattern in _ANY_LABEL_PATTERNS):
+        return None
+    if _NAME_EXCLUSION.search(text):
+        return None
+    if _INSTRUCTION_OPENER.search(text):
+        return None
+    # Marketing copy is excluded outright when it names no commodity at
+    # all: "50% MORE FREE" set across the front of a pack is display text
+    # with nothing behind it, and a penalty alone still let it through on
+    # packs where it was the only large text. When the phrase DOES carry a
+    # descriptor ("RICH IN CALCIUM ALMOND MILK"), it stays a candidate and
+    # takes the penalty instead, per the promotional-text rule.
+    if _MARKETING_CLAIM.search(text) and not _descriptor_score(text):
+        return None
+    if all(_CODE_TOKEN.match(t) for t in text.split()):
+        return None
+    letters = sum(c.isalpha() for c in text)
+    if letters < max(_MIN_PROMINENT_CHARS, len(text.replace(" ", "")) * 0.5):
+        return None
+
+    ratio = _text_height(line) / median_height
+    if ratio < _PROMINENCE_RATIO:
+        return None
+
+    x0, y0, x1, y1 = bounds
+    width = max(1, x1 - x0)
+    height = max(1, y1 - y0)
+    x_centre = ((line.bbox[0] + line.bbox[2]) / 2 - x0) / width
+    y_centre = ((line.bbox[1] + line.bbox[3]) / 2 - y0) / height
+    # Prominent regions, NOT "must be centred": horizontal centrality counts
+    # for more than vertical position, and the vertical term only mildly
+    # prefers the upper-middle band, so a name set low on the pack is not
+    # ruled out. Position is a weighted feature, never a hard rule.
+    position = (1.0 - abs(x_centre - 0.5) * 2) * 0.7 + (1.0 - abs(y_centre - 0.4)) * 0.3
+
+    body = text.replace(" ", "")
+    digits = sum(c.isdigit() for c in body) / max(1, len(body))
+    symbols = sum(not c.isalnum() for c in body) / max(1, len(body))
+    words = text.split()
+    sentence_markers = len(_SENTENCE_MARKER.findall(text)) / max(1, len(words))
+    commas = text.count(",")
+
+    # Short phrase, not one word and not a paragraph: peaks around 2-3 words.
+    length = 1.0 - min(1.0, abs(len(words) - 2.5) / 4.0)
+
+    score = (
+        _W_FONT_SIZE * min(ratio / 3.0, 1.0)
+        + _W_POSITION * max(0.0, position)
+        + _W_CONFIDENCE * confidence
+        + _W_SEMANTIC * min(1.0, _descriptor_score(text) / 2.0)
+        + _W_LENGTH * length
+        + _W_FRONT_PANEL * panel
+        + _W_REPEAT * (1.0 if repeats > 1 else 0.0)
+        - _P_NUMERIC * digits
+        - _P_SYMBOL * symbols
+        - _P_SENTENCE * min(1.0, sentence_markers * 2)
+        - _P_INGREDIENT * min(1.0, commas / 3.0)
+        - _P_MARKETING * (1.0 if _MARKETING_CLAIM.search(text) else 0.0)
+    )
+    return {
+        "text": text, "final_score": round(score, 3),
+        "font_score": round(min(ratio / 3.0, 1.0), 3),
+        "position_score": round(max(0.0, position), 3),
+        "confidence_score": round(confidence, 3),
+        "semantic_score": round(min(1.0, _descriptor_score(text) / 2.0), 3),
+        "length_score": round(length, 3),
+        "front_panel_score": round(panel, 3),
+        "numeric_penalty": round(digits, 3),
+        "symbol_penalty": round(symbols, 3),
+        "sentence_penalty": round(min(1.0, sentence_markers * 2), 3),
+        "prominence_ratio": round(ratio, 2),
+        "descriptors": _descriptor_score(text),
+    }
+
+
+def rank_product_name_candidates(lines: List[OCRLine]) -> List[dict]:
+    """Public for debugging: the ranked candidate list with the per-feature
+    breakdown, highest first. Log this, do not return it through the API."""
+    joined = _join_connected_lines([l for l in lines
+                                    if l.text.strip() and _readable(l)])
+    if len(joined) < 2:
+        return []
+
+    # Baseline is the 25th percentile, not the median. Most text on a pack
+    # is small print, so the lower quartile IS the body-text height - while
+    # a median taken over a panel with only a handful of detections is set
+    # by the name itself, which then cannot possibly exceed it. That is why
+    # a large "Vitamin B12" beside one small declaration scored a ratio of
+    # exactly 1.0 and was rejected as body text.
+    heights = sorted(_text_height(l) for l in joined)
+    median_height = heights[int(len(heights) * 0.25)] or 1
+    panels = _panel_prominence(joined)
+
+    counts: dict = {}
+    for line in joined:
+        counts[_normalise_name(line.text)] = counts.get(_normalise_name(line.text), 0) + 1
+
+    scored = []
+    for i, line in enumerate(joined):
+        text = line.text.strip(" .,:-")
+        start, end = _image_bounds(joined, i)
+        page = joined[start:end]
+        bounds = (min(l.bbox[0] for l in page), min(l.bbox[1] for l in page),
+                  max(l.bbox[2] for l in page), max(l.bbox[3] for l in page))
+        entry = _name_candidate_score(
+            line, text, median_height, bounds,
+            panels.get(line.image_index, 0.0),
+            counts.get(_normalise_name(line.text), 1))
+        if entry is None:
+            continue
+        entry["line"] = line
+        entry["index"] = i
+        scored.append(entry)
+
+    scored.sort(key=lambda e: e["final_score"], reverse=True)
+    return scored
+
+
+def _visually_prominent_name(lines: List[OCRLine]) -> dict:
+    ranked = rank_product_name_candidates(lines)
+    if not ranked:
+        return _empty_evidence()
+
+    best = ranked[0]
+    # BRAND vs PRODUCT NAME. The tallest text on a pack is usually the
+    # brand; the product descriptor is set below it, smaller. So when a
+    # lower-ranked candidate actually NAMES a commodity and the winner does
+    # not, the descriptor is the common name and the winner is the brand.
+    # Bounded: the challenger must still be a real candidate in its own
+    # right (within half the leader's score), so this cannot promote a
+    # scrap of body text over a genuine name.
+    if not best["descriptors"]:
+        for other in ranked[1:]:
+            if other["descriptors"] and other["final_score"] >= best["final_score"] * 0.5:
+                best = other
+                break
+
+    if best["final_score"] < _MIN_NAME_SCORE:
+        return _empty_evidence()
+
+    line, i = best["line"], best["index"]
+    evidence = _base_evidence(line, best["text"], line.text,
+                              _context_window(lines, min(i, len(lines) - 1)))
+    evidence["match_method"] = "visual_prominence"
+    evidence["partial"] = True
+    # Read off the pack's typography, not off a declaration. See the module
+    # comment above and schemas.DeclarationField.inferred.
+    evidence["inferred"] = True
+    evidence["prominence_ratio"] = best["prominence_ratio"]
+    evidence["name_score"] = best["final_score"]
+    return evidence
 
 
 # --------------------------------------------------------------------------
@@ -809,20 +1321,40 @@ def extract_common_name(lines: List[OCRLine]) -> dict:
 # never becomes quantity, because there is no unit evidence to justify that,
 # and guessing would violate the golden rule.
 
+# FIX (Monster 350ml can): the separator class allowed ":" and "-" but not
+# a full stop, and this can prints the declaration as "NET QUANTITY." with a
+# period. Neither the labelled nor the label-only pattern matched, so the
+# label was invisible and extraction fell through to the unlabelled scan -
+# which returned "105 mg" out of the caffeine warning at the top of the
+# panel. A trailing "." after a declaration label is punctuation, not a
+# different label.
 _NET_QTY_LABELLED_PATTERN = re.compile(
     r"(?:net\s*(?:wt\.?|weight|qty\.?|quantity|contents)|(?:\bqty\.?|\bquantity))"
-    r"\s*[:\-]?\s*"
+    r"\s*[:\-.]?\s*"
     r"([\d]+(?:\.\d+)?)\s*"
     r"([a-zA-Z\.]+)?",
     re.IGNORECASE,
 )
 _QTY_LABEL_ONLY = re.compile(
-    r"(?:net\s*(?:wt\.?|weight|qty\.?|quantity|contents)|(?:\bqty\.?|\bquantity))\s*[:\-]?\s*$",
+    r"(?:net\s*(?:wt\.?|weight|qty\.?|quantity|contents)|(?:\bqty\.?|\bquantity))\s*[:\-.]?\s*$",
     re.IGNORECASE,
 )
 _GROSS_WEIGHT = re.compile(r"\bgross\b", re.IGNORECASE)
+# A number+unit sitting inside an ingredients list, a nutrition table or a
+# consumption warning is never the net quantity - it is a per-serving or
+# per-100ml figure, or a daily limit. Without this guard the UNLABELLED
+# fallback returns the first such number on the panel, which on any
+# caffeinated drink is the caffeine warning ("HIGH CAFFEINE (105 mg/350
+# ml)") long before the real declaration at the foot of the label.
+#
+# This only ever REJECTS candidates, so the worst case is a null quantity
+# routed to REVIEW - never a wrong one reported as a pass.
 _QTY_FALSE_CONTEXT = re.compile(
-    r"\b(model|android|lte|wifi|wi-fi|network|version)\b",
+    r"\b(model|android|lte|wifi|wi-fi|network|version"
+    r"|ingredients?|nutrition(?:al)?|caffeine|serving|servings|rda"
+    r"|per\s*\d+\s*(?:g|ml)|energy|protein|carbohydrate|sugars?|sodium"
+    r"|cholesterol|taurine|vitamin|niacin|preservatives?|sweeteners?"
+    r"|flavou?rs?|regulators?|not\s+more\s+than|per\s+day|kcal|ppm)\b",
     re.IGNORECASE,
 )
 # A dimensions declaration ("Dimensions: 10 x 20 x 5 cm", "Size 15x10cm")
@@ -962,7 +1494,7 @@ def extract_net_quantity(lines: List[OCRLine]) -> dict:
         # line of the next image as its quantity. _following_lines stops at
         # the image boundary and yields nothing when the label is the last
         # line of its own image.
-        for next_idx, nxt in _following_lines(lines, i, 1):
+        for next_idx, nxt in _value_candidates(lines, i, 2):
             # Found while writing the cross-image test: this path only
             # accepted a next line that already carried a recognised unit,
             # so "Net Weight:" / "4009" (the same swallowed-unit misread the
@@ -1032,6 +1564,24 @@ _PRICE_LABEL_PATTERN = re.compile(
     re.IGNORECASE,
 )
 _USP_LINE = re.compile(r"unit\s*sale\s*price|\busp\b", re.IGNORECASE)
+
+# A price with a UNIT attached to it is a unit sale price by construction:
+# "Rs.0.36/ml", "Rs 0.111/ml", "₹2.50 per 100 g". The MRP is the price of
+# the pack, so it never carries a per-unit denominator. That structural
+# difference is available even when neither declaration is labelled, which
+# on inkjet-coded packs is common - "USP" is exactly the three characters a
+# dot-matrix coder most often loses.
+#
+# "/-" (Rs.125/-, the Indian "and no paise" marker) is deliberately NOT a
+# unit: the group after the slash must be a real quantity unit, so
+# "Rs.125/-" can never be read as a per-unit price.
+_PER_UNIT_PRICE_PATTERN = re.compile(
+    r"(rs\.?|inr|₹)?\s*([\d,]+(?:\.\d{1,3})?)\s*"
+    r"(?:/|per\s+)\s*"
+    r"(?:\d+\s*)?"
+    r"(g|gm|gms|gram|grams|kg|mg|ml|l|ltr|litre|liter|cl|pc|pcs|piece|unit)\b",
+    re.IGNORECASE,
+)
 _NON_MRP_PRICE_CONTEXT = re.compile(
     r"\b(orders?|above|minimum|discount|off\b|save|cashback|emi|cod)\b",
     re.IGNORECASE,
@@ -1053,8 +1603,12 @@ def _plausible_price_amount(amount: str) -> bool:
         return False
     return True
 
+# "MAX RETAIL PRICE" (found on a real Bikaji sticker) was not covered - the
+# pattern only accepted the fully spelled "maximum". Both abbreviations are
+# common on Indian packaging, and this gap affected extract_mrp itself, not
+# just the column matcher that surfaced it.
 _MRP_LABEL_PATTERN = re.compile(
-    r"(?:mrp|m\.r\.p\.?|maximum\s+retail\s+price)", re.IGNORECASE
+    r"(?:mrp|m\.r\.p\.?|max(?:imum)?\.?\s+retail\s+price)", re.IGNORECASE
 )
 _AMOUNT_TOKEN_PATTERN = re.compile(r"[\d,]+(?:\.\d{1,2})?")
 
@@ -1102,6 +1656,16 @@ def extract_mrp(lines: List[OCRLine]) -> dict:
 
         m2 = _BARE_CURRENCY_PRICE_PATTERN.search(text)
         if m2 and _plausible_price_amount(m2.group(1)):
+            # An UNLABELLED price carrying a unit denominator ("Rs.0.36/ml")
+            # is a unit sale price, not the MRP - the MRP prices the pack,
+            # so it never has a per-unit denominator. Without this, a can
+            # whose "USP" label was lost to a dot-matrix coder reported its
+            # per-millilitre price as the maximum retail price: a Rs.125 can
+            # declared at Rs.0.36. _PER_UNIT_PRICE_PATTERN treats "/-" as
+            # punctuation rather than a unit, so "Rs.125/-" is unaffected.
+            per_unit = _PER_UNIT_PRICE_PATTERN.search(text)
+            if per_unit and per_unit.group(2) == m2.group(1):
+                continue
             price_candidates.append((i, line, m2.group(1)))
             continue
 
@@ -1194,11 +1758,34 @@ _DATE_CANDIDATE_PATTERN = re.compile(
     r"\b("
     rf"\d{{1,2}}\s*[/\-., ]?\s*(?:{_MONTH_NAMES})\.?\s*[/\-., ]?\s*\d{{2,4}}"      # D MON Y / DDMMMYYYY
     rf"|(?:{_MONTH_NAMES})\.?\s*[/\-., ]?\s*\d{{1,2}}\s*[/\-., ]?\s*\d{{2,4}}"     # MON D Y
-    r"|\d{1,2}\s*[/\-.]\s*\d{1,2}\s*[/\-.]\s*\d{2,4}"                             # D/M/Y numeric
-    r"|\d{4}\s*[/\-.]\s*\d{1,2}\s*[/\-.]\s*\d{1,2}"                               # Y/M/D numeric (ISO-ish)
+    r"|\d{1,2}\s*[/\-.]{1,2}\s*\d{1,2}\s*[/\-.]{1,2}\s*\d{2,4}"                   # D/M/Y numeric
+    r"|\d{4}\s*[/\-.]{1,2}\s*\d{1,2}\s*[/\-.]{1,2}\s*\d{1,2}"                     # Y/M/D numeric (ISO-ish)
     r")\b",
     re.IGNORECASE,
 )
+
+
+# FIX (found on the Pineapple Delight carton): inkjet/dot-matrix coders
+# print the year separator as a slash immediately followed by the hyphen
+# that ends the field, and OCR reads both - "27/04/-26", "23/10/-26". The
+# numeric branches above allowed exactly ONE separator character between
+# parts, so neither the candidate regex nor dateutil saw a date at all and
+# BOTH dates on the pack came back null. That is not a parsing near-miss:
+# it silently fails PCR-R05 and PCR-R08 on every pack printed by that
+# class of coder.
+#
+# Collapsing a run of separators to its first character is safe in a way
+# that repairing a DIGIT would not be: no character is invented and no
+# reading is chosen between alternatives - "27/04/-26" has only one
+# possible date in it. A misread digit ("23/40/26" for 23/10/26, the 1
+# read as a 4 on the same pack) is a different problem entirely and is
+# deliberately NOT touched here; it stays unparseable rather than being
+# guessed into a plausible month.
+_DATE_SEPARATOR_RUN = re.compile(r"([/\-.])[/\-.]+")
+
+
+def _clean_date_candidate(candidate: str) -> str:
+    return _DATE_SEPARATOR_RUN.sub(r"\1", candidate).strip()
 
 
 def _try_parse_date(candidate: str):
@@ -1207,6 +1794,13 @@ def _try_parse_date(candidate: str):
     really a date (dateutil raises instead of guessing)."""
     try:
         return dateutil_parser.parse(candidate, fuzzy=True, dayfirst=True)
+    except (ValueError, OverflowError, TypeError):
+        pass
+    cleaned = _clean_date_candidate(candidate)
+    if cleaned == candidate:
+        return None
+    try:
+        return dateutil_parser.parse(cleaned, fuzzy=True, dayfirst=True)
     except (ValueError, OverflowError, TypeError):
         return None
 # FIX (found via testing on a real package photo): a package printed
@@ -1328,7 +1922,7 @@ def _best_duration_after_label(
     if lines is None or line_idx is None:
         return None
 
-    for _, nxt in _following_lines(lines, line_idx, lookahead):
+    for _, nxt in _value_candidates(lines, line_idx, lookahead):
         candidate = nxt.text.strip()
         if not candidate:
             continue
@@ -1422,7 +2016,7 @@ def _extract_dates(lines: List[OCRLine]) -> List[dict]:
     for i, line in enumerate(lines):
         blob = _context_window(lines, i, radius=1)
         for m in _DATE_CANDIDATE_PATTERN.finditer(line.text):
-            date_text = m.group(1).strip()
+            date_text = _clean_date_candidate(m.group(1).strip())
             if _looks_like_phone_fragment(line.text, date_text):
                 continue
             # Stage 2: confirm the broad candidate is an actual date before
@@ -1448,6 +2042,90 @@ def _extract_dates(lines: List[OCRLine]) -> List[dict]:
             # consumers that want a normalised date don't have to re-parse it.
             evidence["parsed_date"] = parsed.date().isoformat()
             found.append(evidence)
+
+    # FIX (spatial MFD/EXP association): the pass above only looks at a
+    # line's OWN text, so a label that sits on its own OCRLine with no date
+    # printed on that same line - "MFD." followed by "27-08-26 13:46" on a
+    # separate physical line, or a right-column value that never got pulled
+    # onto the label's line by merge_label_value_columns (e.g. because the
+    # rest of the block didn't validate as a clean table) - was invisible to
+    # it. This does NOT fall back to "the next line in the list": it goes
+    # through _value_candidates, the same geometry-first (same-row-right,
+    # then below-and-aligned, image-bounded) search net_quantity and the
+    # other label->value fields already use, and only falls back to list
+    # order when no real geometry is available (fixtures, degenerate boxes).
+    # A candidate line is only trusted if the SAME broad date-shape +
+    # dateutil validation used above accepts it, so this cannot invent a
+    # date any more than the same-line path can.
+    for i, line in enumerate(lines):
+        if _DATE_CANDIDATE_PATTERN.search(line.text):
+            continue  # already has its own date; the pass above handles it
+        if _MFG_KEYWORDS.search(line.text):
+            role = "manufacturing"
+        elif _EXP_KEYWORDS.search(line.text):
+            role = "best_before_use_by"
+        else:
+            continue
+
+        for j, cand in _value_candidates(lines, i, 3):
+            cand_text = cand.text.strip()
+            if not cand_text:
+                continue
+            # A candidate that is itself another label - MFG/EXP or one of
+            # the other declarations - with no date on it means the search
+            # has walked off this label's value onto the next row/field;
+            # stop rather than reach past it (same rule as the duration
+            # lookahead above).
+            if not _DATE_CANDIDATE_PATTERN.search(cand_text) and (
+                _MFG_KEYWORDS.search(cand_text)
+                or _EXP_KEYWORDS.search(cand_text)
+                or _OTHER_DECLARATION_AFTER_LABEL.search(cand_text)
+            ):
+                break
+
+            found_date = False
+            for m in _DATE_CANDIDATE_PATTERN.finditer(cand_text):
+                date_text = m.group(1).strip()
+                if _looks_like_phone_fragment(cand_text, date_text):
+                    continue
+                parsed = _try_parse_date(date_text)
+                if parsed is None:
+                    continue
+                found_date = True
+
+                # The same physical date may already be sitting in `found`
+                # with role "unclear" - the flat same-line pass above has no
+                # notion of columns, so it can see this exact date/label pair
+                # as unrelated lines and fail to classify a role for it. Now
+                # that spatial association HAS confirmed which label this
+                # date belongs to, upgrade that entry in place rather than
+                # adding a second, differently-roled record of the same date
+                # that the first-match-wins selection below would never see.
+                upgraded = False
+                for existing in found:
+                    if (existing["image_index"] == cand.image_index
+                            and existing["value"] == date_text
+                            and existing["date_role"] == "unclear"):
+                        existing["date_role"] = role
+                        seen.discard((cand.image_index, date_text, "unclear"))
+                        seen.add((cand.image_index, date_text, role))
+                        upgraded = True
+                        break
+                if upgraded:
+                    continue
+
+                key = (cand.image_index, date_text, role)
+                if key in seen:
+                    continue
+                seen.add(key)
+                evidence = _base_evidence(
+                    cand, date_text, cand_text, _context_window(lines, j)
+                )
+                evidence["date_role"] = role
+                evidence["parsed_date"] = parsed.date().isoformat()
+                found.append(evidence)
+            if found_date:
+                break  # nearest candidate that actually carries a date wins
 
     for i, line in enumerate(lines):
         label_m = _DURATION_LABEL_PATTERN.search(line.text)
@@ -1503,7 +2181,54 @@ def extract_manufacturing_and_expiry_dates(lines: List[OCRLine]):
             if mfg_evidence["value"] is None:
                 mfg_evidence = d
 
-    return mfg_evidence, exp_evidence
+    return _assign_roles_by_chronology(dates, mfg_evidence, exp_evidence)
+
+
+# Two dates, neither anchored to an MFG/EXP keyword - which happens whenever
+# a dot-matrix coder loses the label but keeps the digits. Chronology
+# resolves it: a pack is manufactured before it expires, so of two dates the
+# earlier is the manufacturing date and the later is the expiry.
+#
+# This IS an inference, and it is the one rule_engine.py's presence_with_role
+# branch explicitly refuses to make on its own ("never infer manufacturing vs
+# best_before_use_by here"). So it is made HERE, where the evidence lives,
+# and every date it assigns is marked inferred=True so the rule engine can
+# route it to REVIEW instead of PASS. The dates are never rewritten - only
+# the role is assigned, and only when the pack itself said nothing.
+#
+# Deliberately narrow:
+#   - only when BOTH roles are otherwise unresolved (a pack that labelled
+#     one of its dates has told us something, and that always wins)
+#   - only for exactly two parseable dates; three or more (a packed date, a
+#     best-before and a batch date that parsed) is not a two-way choice
+#   - only when the two dates actually differ
+def _assign_roles_by_chronology(dates, mfg_evidence, exp_evidence):
+    if mfg_evidence.get("date_role") == "manufacturing" or \
+            exp_evidence["value"] is not None:
+        return mfg_evidence, exp_evidence
+
+    parseable = [d for d in dates if d.get("parsed_date")]
+    if len(parseable) != 2:
+        return mfg_evidence, exp_evidence
+    if any(d.get("date_role") in ("manufacturing", "best_before_use_by")
+           for d in parseable):
+        return mfg_evidence, exp_evidence
+
+    earlier, later = sorted(parseable, key=lambda d: d["parsed_date"])
+    if earlier["parsed_date"] == later["parsed_date"]:
+        return mfg_evidence, exp_evidence
+    if earlier.get("image_index") != later.get("image_index"):
+        return mfg_evidence, exp_evidence  # P1: never reason across images
+
+    earlier = dict(earlier)
+    later = dict(later)
+    earlier["date_role"] = "manufacturing"
+    later["date_role"] = "best_before_use_by"
+    earlier["inferred"] = True
+    later["inferred"] = True
+    earlier["role_source"] = "chronology"
+    later["role_source"] = "chronology"
+    return earlier, later
 
 
 # --------------------------------------------------------------------------
@@ -1810,7 +2535,7 @@ def extract_country_of_origin(lines: List[OCRLine]):
         if not (exact_label or _fuzzy_label_match(line.text, _ORIGIN_LABEL_KEYWORDS)):
             continue
         # PROBLEM 1: image-bounded, as above.
-        for j, candidate_line in _following_lines(lines, i, 2):
+        for j, candidate_line in _value_candidates(lines, i, 2):
             if not _readable(candidate_line):
                 continue
             value = candidate_line.text.strip(" .,")
@@ -1835,7 +2560,13 @@ def extract_country_of_origin(lines: List[OCRLine]):
 # --------------------------------------------------------------------------
 
 _USP_PATTERN = re.compile(
-    r"(?:unit\s*sale\s*price|usp)[:\s]*(rs\.?|inr|₹)?\s*([\d,]+(?:\.\d{1,2})?)\s*(?:per|/)?\s*([a-zA-Z]+)?",
+    # The label frequently carries the basis unit BEFORE the amount
+    # ("USP PER g: 0.45/g", "USP Rs. PER ml 0.111"), which the old
+    # `[:\s]*` could not step over - so a cleanly printed USP declaration
+    # matched nothing. Also widened to three decimals: unit prices are
+    # routinely printed to more precision than an MRP ("Rs 0.111/-ml").
+    r"(?:unit\s*sale\s*price|usp)\s*(?:per\s*[a-zA-Z]+)?\s*[:.\s]*"
+    r"(rs\.?|inr|₹)?\s*([\d,]+(?:\.\d{1,3})?)\s*(?:per|/)?\s*([a-zA-Z]+)?",
     re.IGNORECASE,
 )
 
@@ -1846,6 +2577,23 @@ def extract_unit_sale_price(lines: List[OCRLine]) -> dict:
         evidence = _base_evidence(line, amount.replace(",", ""), line.text, _context_window(lines, i))
         evidence["currency"] = CURRENCY_SYMBOLS.get((currency_sym or "").lower(), "INR")
         evidence["unit"] = _norm_unit(unit)
+        evidence["match_method"] = "explicit_label"
+        return evidence
+
+    # No "USP"/"unit sale price" label anywhere: accept the per-unit price
+    # FORM instead. See _PER_UNIT_PRICE_PATTERN - the unit denominator is
+    # itself the declaration, not an inference about one.
+    for i, line, m in _find_lines_matching(lines, _PER_UNIT_PRICE_PATTERN):
+        if _QTY_FALSE_CONTEXT.search(line.text):
+            continue  # "TAURINE (400 mg/100 ml)" is not a price
+        currency_sym, amount, unit = m.group(1), m.group(2), m.group(3)
+        if not _plausible_price_amount(amount.replace(",", "")):
+            continue
+        evidence = _base_evidence(line, amount.replace(",", ""), line.text,
+                                  _context_window(lines, i))
+        evidence["currency"] = CURRENCY_SYMBOLS.get((currency_sym or "").lower(), "INR")
+        evidence["unit"] = _norm_unit(unit)
+        evidence["match_method"] = "per_unit_form"
         return evidence
     return _empty_evidence()
 
@@ -1887,3 +2635,465 @@ def extract_pdp_colocation_evidence(lines: List[OCRLine], field_evidence: dict) 
         "context_confirmed": None,
         "image_geometry": None,
     }
+
+# ==========================================================================
+# Two-column label/value table merging
+# ==========================================================================
+# Indian packs routinely print the variable declarations as two stacked
+# columns - labels on the left, values on the right:
+#
+#     #MRP Rs.          Rs 20.00
+#     USP Rs.           Rs 0.111/-ml
+#     BATCH NO.         SP7919H27D26
+#     MFD.              27/04/26 19:46
+#     USE BY.           23/10/26
+#
+# ocr_engine._split_at_column_gaps correctly separates those into distinct
+# OCRLines. Nothing then puts them back together: every extractor in this
+# file looks for a label and its value on the SAME line, or on the NEXT
+# line. Neither holds here - the value is in the other column, and under
+# perspective skew (a photo taken at an angle, or a sticker applied
+# slightly crooked) the value's row does not even line up vertically with
+# its label's row. On both real packs we have, the value column sits about
+# one row higher than the label column.
+#
+# WHY RANK AND NOT GEOMETRY. Row POSITION is what skew destroys; row ORDER
+# is what it preserves. The Nth label belongs to the Nth value however far
+# the columns have drifted apart vertically. Pairing by nearest-neighbour
+# reports the per-unit price as the MRP on the pack above; pairing by rank
+# gets all five rows right.
+#
+# WHY SYNTHESIZE LINES instead of extracting values here. Emitting a merged
+# "label value" OCRLine means extract_mrp, extract_unit_sale_price,
+# extract_manufacturing_and_expiry_dates and the rest see the same-line
+# shape they already handle, with their own normalisation, role
+# classification and context_confirmed logic intact. Extracting values
+# directly in this function would mean reimplementing all of that, and the
+# reimplementation would drift.
+#
+# The original label-only and value-only lines are KEPT. A merged line is an
+# addition, never a replacement: if a pairing is wrong, the underlying
+# evidence is still there for another pass or a context window to use.
+#
+# FALSE-NEGATIVE BIAS. A wrong pairing produces confidently wrong evidence,
+# which is worse than the empty evidence we get today. So a block is merged
+# only when its shape is unambiguous - see the three guards in Steps 2-3.
+
+# The union of every label vocabulary already defined in this module. Built
+# from the existing patterns rather than a new list, so a label the
+# extractors understand is automatically a label this matcher understands.
+# The USP label half, split out from _USP_PATTERN so a label-only line in a
+# column ("USP Rs.", "USP PER g:") is recognised on its own.
+_USP_LABEL_ONLY = re.compile(
+    r"\busp\b|unit\s*sale\s*price|price\s*per\s*(?:g|ml|kg|l)\b",
+    re.IGNORECASE,
+)
+
+_ANY_LABEL_PATTERNS = (
+    _MRP_LABEL_PATTERN,
+    _USP_LABEL_ONLY,
+    _QTY_LABEL_ONLY,
+    _MFG_KEYWORDS,
+    _EXP_KEYWORDS,
+    _DURATION_LABEL_PATTERN,
+    _CARE_KEYWORDS,
+    _ORIGIN_LABEL_ONLY,
+    _COMMON_NAME_PATTERN,
+    # Batch/lot is not a declaration we report, but it occupies a row in
+    # these tables. Without it the block fails Step 2 and nothing merges.
+    re.compile(r"\bbatch\s*no|lot\s*no|b\.?\s*no\b", re.IGNORECASE),
+)
+
+_MIN_COLUMN_ROWS = 2          # per band, per the spec
+_MAX_LABEL_LEN = 30           # a table label is short; prose is not a label
+_WIDTH_RATIO_LIMIT = 3.0      # reject a label band containing a full-width banner
+# Vertical overlap (as a fraction of the shorter box) at which a value is
+# considered to sit on a label's row.
+_ROW_MATCH_OVERLAP = 0.5
+# How far below its first line a wrapped continuation may start, as a
+# multiple of the text height above it.
+_WRAP_GAP_RATIO = 1.5
+# How far an individual label->value offset may stray from the block's
+# median offset, as a fraction of the row pitch, before ordinal pairing is
+# refused. Comfortably under 1.0, so a one-row shift can never pass.
+_RANK_OFFSET_TOLERANCE = 0.6
+
+
+def _text_height(line: OCRLine) -> float:
+    return max(1.0, float(line.bbox[3] - line.bbox[1]))
+
+
+def _is_known_label(text: str) -> bool:
+    """True when a line is a label in ANY field's vocabulary."""
+    stripped = text.strip()
+    if not stripped or len(stripped) > _MAX_LABEL_LEN:
+        return False
+    if any(p.search(stripped) for p in _ANY_LABEL_PATTERNS):
+        return True
+    # Same fuzzy thresholding the manufacturer/care/origin fallbacks use,
+    # so an OCR-corrupted label still counts.
+    return _fuzzy_label_match(stripped, _LABEL_KEYWORDS)
+
+
+def _column_bands(block: List[tuple], gap: float):
+    """Split (index, line) entries into a left and a right band separated by
+    a column gutter, or (None, None) if they do not form two columns."""
+    left_edges = sorted(line.bbox[0] for _, line in block)
+    split = None
+    for a, b in zip(left_edges, left_edges[1:]):
+        if b - a > gap:
+            split = (a + b) / 2.0
+            break
+    if split is None:
+        return None, None
+    left = [(i, l) for i, l in block if l.bbox[0] < split]
+    right = [(i, l) for i, l in block if l.bbox[0] >= split]
+    if len(left) < _MIN_COLUMN_ROWS or len(right) < _MIN_COLUMN_ROWS:
+        return None, None
+    # The gutter must be real: the right column must start after the left
+    # column ENDS. Comparing against the split midpoint instead (an earlier
+    # version) rejected every genuine table, because a label's text
+    # naturally extends past the midpoint between the two columns' left
+    # edges - "MAX RETAIL PRICE" is wider than the gap before its value.
+    if min(l.bbox[0] for _, l in right) < max(l.bbox[2] for _, l in left):
+        return None, None
+    return left, right
+
+
+def _centre_y(line: OCRLine) -> float:
+    return (line.bbox[1] + line.bbox[3]) / 2.0
+
+
+def _v_overlap_ratio(a: OCRLine, b: OCRLine) -> float:
+    """Vertical overlap of two boxes as a fraction of the SHORTER box's
+    height. 1.0 means one sits entirely within the other's row band."""
+    top = max(a.bbox[1], b.bbox[1])
+    bottom = min(a.bbox[3], b.bbox[3])
+    if bottom <= top:
+        return 0.0
+    return (bottom - top) / min(_text_height(a), _text_height(b))
+
+
+def _x_overlaps(a: OCRLine, b: OCRLine) -> bool:
+    return min(a.bbox[2], b.bbox[2]) > max(a.bbox[0], b.bbox[0])
+
+
+def _median(values: list) -> float:
+    ordered = sorted(values)
+    mid = len(ordered) // 2
+    if len(ordered) % 2:
+        return float(ordered[mid])
+    return (ordered[mid - 1] + ordered[mid]) / 2.0
+
+
+def _wrap_host(pairs: list, line: OCRLine):
+    """The pair whose value this line is a wrapped continuation of: the
+    nearest value ENDING above it, in the same image, horizontally
+    overlapping it, within one text height. None when nothing qualifies."""
+    host = None
+    for pair in pairs:
+        previous = pair[1][-1]
+        if previous.image_index != line.image_index:
+            continue
+        gap = line.bbox[1] - previous.bbox[3]
+        if gap < 0 or gap > _WRAP_GAP_RATIO * _text_height(previous):
+            continue
+        if not _x_overlaps(previous, line):
+            continue
+        if host is None or previous.bbox[3] > host[1][-1].bbox[3]:
+            host = pair
+    return host
+
+
+def _pair_by_row_index(left: list, right: list):
+    """PRIORITY 1-3: pair by the OCR engine's own row/column coordinates.
+
+    ocr_engine._words_to_lines clusters words into physical rows BEFORE
+    _split_at_column_gaps cuts each row into columns, so a label and the
+    value printed beside it carry the same row_index and ascending
+    column_index. Matching on that is immune to the failure this replaced:
+    a dropped, duplicated or extra OCR line changes only its OWN row, and
+    can no longer shift every pair beneath it, because no pairing here
+    depends on list position or on any other row's outcome.
+
+    Returns None (not an empty list) when the block carries no row
+    information, or when no row contains both a label and a value - both
+    mean "row matching has nothing to say here", and the caller falls
+    through to geometry.
+    """
+    if any(l.row_index is None for _, l in left) or \
+       any(l.row_index is None for _, l in right):
+        return None
+
+    rows: dict = {}
+    for _, line in right:
+        rows.setdefault(line.row_index, []).append(line)
+    label_rows = {l.row_index for _, l in left}
+
+    pairs: list = []
+    consumed = set()
+    for _, label in sorted(left, key=lambda e: e[1].bbox[1]):
+        # Same image (P1), same row, and to the RIGHT of the label - a
+        # value never precedes its own label within a row.
+        same_row = [v for v in rows.get(label.row_index, [])
+                    if v.image_index == label.image_index
+                    and (label.column_index is None or v.column_index is None
+                         or v.column_index > label.column_index)]
+        if not same_row:
+            continue  # this row's value is missing; every other row stands
+        same_row.sort(key=lambda v: (v.column_index if v.column_index is not None
+                                     else 0, v.bbox[0]))
+        pairs.append([label, list(same_row)])
+        consumed.update(id(v) for v in same_row)
+
+    if not pairs:
+        return None
+
+    # A value that wrapped onto a second physical line lands in a row of
+    # its own with no label in it. Fold it back into the row above, but
+    # never across an intervening label row - that would be guessing.
+    for line in sorted((l for _, l in right), key=lambda l: l.bbox[1]):
+        if id(line) in consumed or line.row_index in label_rows:
+            continue
+        host = _wrap_host(pairs, line)
+        if host is None:
+            continue
+        if any(host[0].row_index < r < line.row_index for r in label_rows):
+            continue
+        host[1].append(line)
+        consumed.add(id(line))
+
+    return pairs
+
+
+def _pair_by_geometry(left: list, right: list):
+    """PRIORITY 4-5: fall back to bounding-box geometry when the lines
+    carry no row_index (hand-built OCRLines, or any producer other than
+    _words_to_lines).
+
+    Each value takes the label whose row band it overlaps best, one to
+    one, and one unmatched value may be folded in as a wrapped
+    continuation of the value above it.
+
+    All-or-nothing on purpose. If any label ends up without a value, or
+    more than one value is left over, this returns None rather than
+    emitting the pairs it did resolve: with no row information, a block
+    whose value column is offset by a whole row (common on packs where
+    the declarations are over-printed at fill time) produces exactly the
+    same overlaps as a block with a dropped first value, and nothing in
+    the geometry distinguishes them. Rejecting the block loses evidence;
+    guessing invents it.
+    """
+    left_lines = sorted((l for _, l in left), key=lambda l: l.bbox[1])
+    right_lines = sorted((l for _, l in right), key=lambda l: l.bbox[1])
+
+    claims = []
+    for vi, value in enumerate(right_lines):
+        for li, label in enumerate(left_lines):
+            if label.image_index != value.image_index:
+                continue  # never pair across images (P1)
+            overlap = _v_overlap_ratio(label, value)
+            if overlap >= _ROW_MATCH_OVERLAP:
+                claims.append((overlap, -abs(_centre_y(label) - _centre_y(value)),
+                               vi, li))
+    claims.sort(reverse=True)
+
+    value_of: dict = {}
+    taken = set()
+    for _, _, vi, li in claims:
+        if li in value_of or vi in taken:
+            continue
+        value_of[li] = vi
+        taken.add(vi)
+
+    leftover = [vi for vi in range(len(right_lines)) if vi not in taken]
+    if len(leftover) > 1:
+        return None  # more than one stray line is not a single clean wrap
+
+    pairs = [[left_lines[li], [right_lines[value_of[li]]]]
+             for li in sorted(value_of)]
+
+    if leftover:
+        host = _wrap_host(pairs, right_lines[leftover[0]])
+        if host is None:
+            return None
+        host[1].append(right_lines[leftover[0]])
+
+    if len(value_of) != len(left_lines):
+        return None
+    return pairs
+
+
+def _pair_by_rank(left: list, right: list):
+    """LAST RESORT: ordinal pairing, but only for a value column that is
+    uniformly offset from its label column.
+
+    This is the layout the ordinal matcher was originally written for and
+    the one test_columns_merge_and_pair_by_rank pins: on a real Bikaji
+    declaration sticker the value column sits a full row below its labels,
+    so every value overlaps the row band of the NEXT label down and
+    geometry confidently reads the whole table off by one. Order survives
+    that offset; position does not.
+
+    Unlike the previous unconditional zip(), the ordinal hypothesis now
+    has to be earned: counts must match exactly, and every label-to-value
+    vertical offset must agree with the block's median offset to well
+    within one row pitch. A dropped, extra or shifted line breaks that
+    agreement (one pair is a full pitch out of line) and the block is
+    rejected instead of silently mispaired.
+    """
+    if len(left) != len(right) or len(left) < 2:
+        return None
+
+    left_lines = sorted((l for _, l in left), key=lambda l: l.bbox[1])
+    right_lines = sorted((l for _, l in right), key=lambda l: l.bbox[1])
+    if any(label.image_index != value.image_index
+           for label, value in zip(left_lines, right_lines)):
+        return None
+
+    centres = [_centre_y(l) for l in left_lines]
+    pitch = _median([b - a for a, b in zip(centres, centres[1:])])
+    if pitch <= 0:
+        return None
+
+    offsets = [_centre_y(value) - _centre_y(label)
+               for label, value in zip(left_lines, right_lines)]
+    median_offset = _median(offsets)
+    if max(abs(o - median_offset) for o in offsets) > _RANK_OFFSET_TOLERANCE * pitch:
+        return None
+
+    return [[label, [value]] for label, value in zip(left_lines, right_lines)]
+
+
+def merge_label_value_columns(lines: List[OCRLine]) -> List[OCRLine]:
+    """Adds synthesized "label value" lines for validated two-column blocks.
+
+    Pairing is SPATIAL: a label takes the value on its own physical row
+    (ocr_engine's row_index where available, bounding-box geometry
+    otherwise), with ordinal order kept only as a validated last resort
+    for uniformly offset columns. See Step 3 below.
+
+    This replaced an unconditional `zip(left, right)` guarded only by "the
+    two columns must have equal counts". That guard catches a single drop
+    or a single extra line, but not both at once: one dropped value plus
+    one stray right-column line leaves the counts equal, and every pair
+    below the drop silently shifts up by one - a batch code reported as
+    the MRP, an expiry date as the manufacturing date, at full confidence.
+
+    Returns the original lines plus any merged lines, re-sorted by
+    (y0, x0) - the same key ocr_engine uses - so nothing downstream needs
+    to know some lines are synthetic.
+    """
+    if len(lines) < 2 * _MIN_COLUMN_ROWS:
+        return lines
+
+    merged: List[OCRLine] = []
+    scanned = 0
+    while scanned < len(lines):
+        start, end = _image_bounds(lines, scanned)
+        scanned = end
+
+        block = [(i, lines[i]) for i in range(start, end)
+                 if lines[i].text.strip() and _readable(lines[i])]
+        if len(block) < 2 * _MIN_COLUMN_ROWS:
+            continue
+
+        heights = sorted(_text_height(l) for _, l in block)
+        gap = heights[len(heights) // 2] * _COLUMN_GAP_RATIO
+
+        # Step 1: two consistent x0 bands separated by a real gutter.
+        left, right = _column_bands(block, gap)
+        if left is None:
+            continue
+
+        # A full-width banner (a product name across the pack) can start in
+        # the left band and is not a table row. Reject a label band whose
+        # widths are wildly inconsistent rather than trying to guess which
+        # line is the odd one out.
+        #
+        # FIX: this now checks the LABEL band only. Applied to the value
+        # band it rejected legitimate tables, because a value column's
+        # widths are legitimately uneven - a batch code beside a wrapped
+        # "13:46" is a 4x ratio on a perfectly ordinary pack, and that
+        # alone was throwing away every field in the block. The banner this
+        # guard exists for is a label-band problem: a value band cannot
+        # contain one, since _column_bands already requires the whole right
+        # band to start after the left band ends.
+        label_widths = [l.bbox[2] - l.bbox[0] for _, l in left]
+        if max(label_widths) > _WIDTH_RATIO_LIMIT * max(1, min(label_widths)):
+            continue
+
+        # Step 2: EVERY left-band line must be a recognized label. One
+        # unrecognized line means we do not understand the block's shape,
+        # and pairing an unknown shape is how wrong values get produced.
+        if not all(_is_known_label(l.text) for _, l in left):
+            continue
+
+        # Step 3: decide which value belongs to which label, spatially.
+        #
+        #   1. row_index/column_index straight off the OCR engine's own row
+        #      clustering - but only when it explains EVERY label in the
+        #      block. See below.
+        #   2. bounding-box geometry, when the lines carry no row
+        #      information at all. All-or-nothing.
+        #   3. ordinal order, and only for a value column uniformly offset
+        #      from its labels - the skewed-sticker case. See _pair_by_rank.
+        #   4. failing all of those, a partial row cover if there is one.
+        #
+        # The completeness condition on (1) is not fussiness, it is the
+        # whole safety argument. On a pack whose declarations are
+        # over-printed a full row high - the Bikaji sticker, the Pineapple
+        # Delight carton - the row clustering in ocr_engine puts each label
+        # in the same row band as the value belonging to the row ABOVE it.
+        # The row coordinate is then not merely unhelpful, it is confidently
+        # wrong: "MRP Rs." lands on the per-ml price, "BATCH NO." on the
+        # manufacturing date. What gives that away is that the shift leaves
+        # a value stranded at the top with no label and a label stranded at
+        # the bottom with no value - an incomplete cover. So an incomplete
+        # row cover defers to a uniformly-offset ordinal reading, and is
+        # used only when that is unavailable too.
+        #
+        # Every strategy pairs within one image only (P1), and a block none
+        # of them can resolve is left unpaired rather than guessed at.
+        row_pairs = _pair_by_row_index(left, right)
+        if row_pairs is not None and len(row_pairs) == len(left):
+            pairs = row_pairs
+        else:
+            pairs = None
+            if row_pairs is None:
+                pairs = _pair_by_geometry(left, right)
+            pairs = pairs or _pair_by_rank(left, right) or row_pairs
+        if not pairs:
+            continue
+
+        # Step 4: synthesize one "label value" line per resolved row.
+        for label_line, value_lines in pairs:
+            value_lines = [v for v in value_lines
+                           if v.image_index == label_line.image_index]
+            if not value_lines:
+                continue
+            boxes = [label_line.bbox] + [v.bbox for v in value_lines]
+            confidences = [c for c in [label_line.confidence]
+                           + [v.confidence for v in value_lines] if c is not None]
+            words = list(label_line.words)
+            for value_line in value_lines:
+                words += list(value_line.words)
+            merged.append(OCRLine(
+                text=" ".join([label_line.text] + [v.text for v in value_lines]),
+                bbox=[min(b[0] for b in boxes), min(b[1] for b in boxes),
+                      max(b[2] for b in boxes), max(b[3] for b in boxes)],
+                confidence=round(sum(confidences) / len(confidences), 3)
+                if confidences else None,
+                image_index=label_line.image_index,
+                words=words,
+                row_index=label_line.row_index,
+                column_index=label_line.column_index,
+            ))
+
+    if not merged:
+        return lines
+
+    # Step 5: originals + synthesized, in reading order.
+    combined = list(lines) + merged
+    combined.sort(key=lambda l: (l.bbox[1], l.bbox[0]))
+    return combined

@@ -1,69 +1,68 @@
 """
-PackSure — OCR Engine
+PackSure — OCR Engine (PaddleOCR)
 Person 2 (AI/CV — OCR & Extraction)
 
-Wraps Tesseract OCR and turns its raw word-level output into LINE-level
-text blocks, which is the unit field_extractors.py works on. Each line
-carries a bounding box (in the original image's pixel coordinates) and a
-confidence score, plus the image_index it came from (1-based, per the
-architecture doc's multi-image convention).
-
-Swap PytesseractBackend for a different OCR engine (Google Vision, an
-EasyOCR/PaddleOCR model, etc.) later without touching field_extractors.py
-or pipeline.py — that's the whole point of keeping this file separate.
+Turns package photos into LINE-level text blocks, which is the unit
+field_extractors.py works on. Each OCRLine carries a bounding box in the
+original image's pixel coordinates, a confidence score, and the 1-based
+image_index it came from (per the architecture doc's multi-image
+convention).
 
 --------------------------------------------------------------------------
-FIX (photo-of-package OCR quality): Tesseract's models assume a fairly
-uniform, high-contrast scanned page. Fed a raw phone photo of a glossy,
-colourful package with small dense print, it can produce near-total
-garbage. Addressed by preprocessing (_preprocess_variants) plus multi-pass
-OCR, merged at the word level.
+WHY PADDLEOCR, AND WHY TESSERACT WAS REMOVED
+--------------------------------------------------------------------------
+Tesseract's models assume solid-stroke type on a flat, evenly lit page.
+Every extraction failure we could not fix in the logic layer broke that
+assumption:
 
-FIX (multi-pass merge dedup gap): merging passes used to dedup whole
-*lines* by bbox IOU. Two passes segmenting a line slightly differently
-meant both survived and their text ended up concatenated - e.g. "SIX
-MONTHS" turning into "SI SIX MONTHS" - which broke exact-match regexes
-downstream. Dedup now happens at the *word* level, across all passes,
-before any line is assembled.
+  * inkjet / dot-matrix variable data - MRP, batch, MFD and USE BY are
+    sprayed at fill time as broken dot strokes. On one real pack Tesseract
+    read roughly 40% of a panel that is perfectly legible to a human.
+  * glare and shadow on glossy or curved film.
+  * 6pt licence blocks printed at an angle.
+  * photos taken upside down (Tesseract does not auto-orient).
+
+PaddleOCR's detector is trained on scene text rather than scanned
+documents, which is far closer to "photo of a package". It runs locally:
+no API key, no billing, no network at demo time, no per-request cost.
 
 --------------------------------------------------------------------------
-NEW FIXES IN THIS REVISION
+A NOTE ON GRANULARITY
 --------------------------------------------------------------------------
-1. LINE ORDERING (real bug). _words_to_lines built lines greedily from a
-   y-sorted word list, but a line's bbox grows as words are added, so the
-   emitted line order could drift out of top-to-bottom reading order. Every
-   "label on its own line, value on the NEXT line" fallback in
-   field_extractors.py (manufacturer, common_name, net_quantity,
-   country_of_origin) depends on that order, as does _context_window().
-   Lines are now explicitly sorted by (y0, x0) before being returned.
+Paddle returns TEXT-LINE detections, not individual words, so a label like
+"MFG. DATE:" usually arrives as one detection. Each detection is fed into
+_words_to_lines as if it were a word.
 
-2. INVERTED / LOW-CONTRAST PRINT (recall). Global Otsu assumes dark text on
-   a light background. Indian FMCG packs very often print white-on-colour,
-   and glare regions get wiped out entirely by a single global threshold -
-   which is exactly the "image issue" cause behind several of the null
-   fields in the audit (e.g. the "110g" region "wasn't recognised as text by
-   OCR at all"). _preprocess_variants() now produces up to three renderings
-   (Otsu binary, an autocontrast grayscale that survives glare, and an
-   inverted binary when the image is dark-dominant). Word-level dedup makes
-   the extra passes safe: a word found by two renderings is merged, not
-   duplicated.
+That is deliberate. _words_to_lines gives us row clustering and, crucially,
+_split_at_column_gaps - and the two-column rank matcher in
+field_extractors depends on columns being split exactly the way that
+function splits them. Using Paddle's own grouping instead would silently
+bypass logic the test suite covers. Running detections through the same
+path means a label and its value stay separate lines when they sit in
+separate columns, and merge into one line when they genuinely sit together.
 
-3. PASS ISOLATION (robustness). A single Tesseract invocation failing (bad
-   config, odd image mode) used to abort the entire scan. Each pass is now
-   wrapped independently; surviving passes still produce output.
-
-4. Removed dead code (_vertical_overlap was defined but never called) and
-   moved _bbox_iou / _DEDUP_IOU_THRESHOLD above their first use.
 --------------------------------------------------------------------------
+NO IMAGE PREPROCESSING
+--------------------------------------------------------------------------
+The old engine ran multi-variant preprocessing (Otsu binarisation, contrast
+stretching, inversion) across several Tesseract passes. All of that existed
+to compensate for Tesseract's assumptions and is removed. PaddleOCR does
+its own normalisation internally, and hand-binarising in front of it
+destroys the greyscale gradients its detector relies on.
+
+--------------------------------------------------------------------------
+SETUP
+--------------------------------------------------------------------------
+    pip install paddlepaddle paddleocr
+
+The first run downloads detection/recognition models (~100-200MB) into
+~/.paddleocr. Do this once on a good connection BEFORE any demo.
 """
 
 from dataclasses import dataclass, field
-from typing import List, Optional, Tuple
+from typing import List, Optional
 import re
-
-import numpy as np
-import pytesseract
-from PIL import Image, ImageFilter, ImageOps
+import os
 
 
 @dataclass
@@ -72,7 +71,17 @@ class OCRLine:
     bbox: List[int]          # [x_min, y_min, x_max, y_max] in pixel coords
     confidence: float        # 0.0 - 1.0
     image_index: int         # 1-based, matches architecture doc convention
-    words: List[dict] = field(default_factory=list)  # word-level detail, kept for finer bbox lookups
+    words: List[dict] = field(default_factory=list)  # detection-level detail
+    # Layout coordinates from _words_to_lines' own clustering, made explicit
+    # so downstream code can pair a label with its value by PHYSICAL ROW
+    # instead of by list position. row_index counts rows top-to-bottom
+    # within one image; column_index counts the column runs
+    # _split_at_column_gaps produced within that row, left-to-right.
+    # Both stay None for OCRLine objects built by hand or by any caller
+    # that does not go through _words_to_lines - consumers must treat None
+    # as "no layout information" and fall back to geometry.
+    row_index: Optional[int] = None
+    column_index: Optional[int] = None
 
 
 # --------------------------------------------------------------------------
@@ -112,135 +121,6 @@ _STRONG_OVERLAP = 0.70
 # Intersection / area-of-smaller-box. Catches a sub-token sitting inside the
 # word a different pass read whole ("250" inside "250g").
 _CONTAINMENT_THRESHOLD = 0.80
-_UPSCALE = 2.5
-
-
-# --------------------------------------------------------------------------
-# Preprocessing
-# --------------------------------------------------------------------------
-
-def _otsu_threshold(arr: np.ndarray) -> int:
-    """
-    Standard Otsu's method: pick the grayscale threshold (0-255) that
-    minimises intra-class variance between the two resulting pixel
-    populations (print vs. background/glare). Implemented directly on top
-    of numpy so this file doesn't need an OpenCV dependency for one
-    histogram scan.
-    """
-    hist, _ = np.histogram(arr.ravel(), bins=256, range=(0, 256))
-    total = arr.size
-    sum_total = np.dot(np.arange(256), hist)
-
-    sum_bg = 0.0
-    weight_bg = 0
-    best_thresh, best_variance = 0, -1.0
-
-    for t in range(256):
-        weight_bg += hist[t]
-        if weight_bg == 0:
-            continue
-        weight_fg = total - weight_bg
-        if weight_fg == 0:
-            break
-        sum_bg += t * hist[t]
-        mean_bg = sum_bg / weight_bg
-        mean_fg = (sum_total - sum_bg) / weight_fg
-        variance = weight_bg * weight_fg * (mean_bg - mean_fg) ** 2
-        if variance > best_variance:
-            best_variance = variance
-            best_thresh = t
-
-    return best_thresh
-
-
-def _base_gray(img: Image.Image) -> Image.Image:
-    """Upscale + denoise. Shared by every rendering variant so all variants
-    live in the same coordinate system and their boxes can be compared."""
-    gray = img.convert("L")
-
-    # Upscale. Small printed text on a packaging photo is often only a
-    # handful of pixels tall at native resolution; Tesseract's character
-    # models need more than that to have a chance.
-    w, h = gray.size
-    gray = gray.resize(
-        (max(1, int(w * _UPSCALE)), max(1, int(h * _UPSCALE))), Image.LANCZOS
-    )
-
-    # Denoise. A median filter clears the salt-and-pepper / JPEG compression
-    # noise typical of phone photos without smearing character edges the way
-    # a heavier Gaussian blur would.
-    return gray.filter(ImageFilter.MedianFilter(size=3))
-
-
-def _preprocess_variants(img: Image.Image) -> List[Image.Image]:
-    """
-    Returns the renderings of the image that Tesseract should be run over.
-
-    Variant 1 - Otsu binary: the workhorse. Picks a global black/white
-      threshold that best separates print from background.
-    Variant 2 - autocontrast grayscale: no thresholding at all. A global
-      threshold is destructive on a photo with uneven lighting - a glare
-      patch pushes a whole region to one side of the threshold and the text
-      inside it disappears. Keeping a contrast-stretched grayscale rendering
-      gives Tesseract's own adaptive binarisation a chance at those regions.
-    Variant 3 - inverted binary, only when the image is dark-dominant:
-      white-on-colour print is extremely common on FMCG packaging, and Otsu
-      hands Tesseract white glyphs on black, which its models are not
-      trained for.
-
-    All variants share _base_gray()'s geometry, so a word found by two
-    variants dedups cleanly by bbox in _merge_words_across_passes().
-    """
-    gray = _base_gray(img)
-    arr = np.array(gray)
-    threshold = _otsu_threshold(arr)
-    binary = Image.fromarray((arr > threshold).astype(np.uint8) * 255)
-
-    variants = [binary, ImageOps.autocontrast(gray, cutoff=2)]
-
-    # "Dark-dominant" = most pixels fall below the Otsu threshold, i.e. the
-    # background is the dark class and the print is the light class.
-    if float((arr <= threshold).mean()) > 0.55:
-        variants.append(ImageOps.invert(binary.convert("L")))
-
-    return variants
-
-
-# --------------------------------------------------------------------------
-# Word extraction, cross-pass dedup, and line grouping
-# --------------------------------------------------------------------------
-
-def _extract_words(ocr_data: dict, image_index: int, pass_index: int = 0,
-                   scale: float = 1.0) -> List[dict]:
-    """Flatten one pass's pytesseract.image_to_data output into a list of
-    per-word dicts. No line grouping happens here - that's done once, after
-    words from all passes have been merged and deduped."""
-    words = []
-    n = len(ocr_data["text"])
-    for i in range(n):
-        text = ocr_data["text"][i].strip()
-        try:
-            conf = int(float(ocr_data["conf"][i]))
-        except (TypeError, ValueError):
-            continue
-        if not text or conf < 0:
-            continue  # tesseract uses conf=-1 for non-text regions
-
-        x, y, w, h = (ocr_data["left"][i], ocr_data["top"][i],
-                      ocr_data["width"][i], ocr_data["height"][i])
-        # Tesseract sees the preprocessed (upscaled) image. Convert its boxes
-        # back to the original image coordinate system required by the
-        # evidence contract.
-        inv_scale = 1.0 / scale if scale else 1.0
-        words.append({
-            "text": text,
-            "bbox": [round(x * inv_scale), round(y * inv_scale),
-                     round((x + w) * inv_scale), round((y + h) * inv_scale)],
-            "confidence": conf / 100.0,
-            "image_index": image_index,
-            "pass_index": pass_index,
-        })
-    return words
 
 
 def _normalise_ocr_token(text: str) -> str:
@@ -250,7 +130,10 @@ def _normalise_ocr_token(text: str) -> str:
 
 def _merge_words_across_passes(all_words: List[dict]) -> List[dict]:
     """
-    Merge duplicate detections from different Tesseract passes.
+    Deduplicate overlapping OCR detections.
+
+    PaddleOCR currently supplies one OCR pass, so this normally acts as
+    a no-op while preserving the existing word-processing contract.
 
     A duplicate must:
       1. come from different passes,
@@ -381,7 +264,12 @@ def _words_to_lines(words: List[dict], image_index: int) -> List[OCRLine]:
             target["heights"] = sorted(target["heights"] + [w_height])
 
     result = []
-    for ln in lines:
+    # Rows are numbered top-to-bottom by their running centre, so row_index
+    # is a stable physical coordinate rather than an artefact of the order
+    # clusters happened to be created in. The column runs below inherit
+    # their row's number, which is what lets a label and the value printed
+    # beside it be recognised as the same row later.
+    for row_index, ln in enumerate(sorted(lines, key=lambda l: l["centre"])):
         ordered = sorted(ln["words"], key=lambda w: w["bbox"][0])
         # PROBLEM 9 — column merging (demonstrated, not speculative).
         # Clustering purely by y-overlap joins everything sitting at the same
@@ -403,8 +291,10 @@ def _words_to_lines(words: List[dict], image_index: int) -> List[OCRLine]:
         # it. The 2.0x threshold sits well clear of both, so ordinary spacing
         # (including the wide spacing OCR reports around punctuation) is
         # never split.
-        for run in _split_at_column_gaps(ordered):
-            line = _line_from_words(run, image_index)
+        for column_index, run in enumerate(_split_at_column_gaps(ordered)):
+            line = _line_from_words(run, image_index,
+                                    row_index=row_index,
+                                    column_index=column_index)
             if line is not None:
                 result.append(line)
 
@@ -419,6 +309,98 @@ _COLUMN_GAP_RATIO = 2.0
 # 0.5 would mean "within half a character height", which is about the
 # tightest that still tolerates baseline jitter on a curved package.
 _ROW_CENTRE_TOLERANCE = 0.5
+
+
+# --------------------------------------------------------------------------
+# Page orientation
+# --------------------------------------------------------------------------
+# A pack photographed upside down (a carton held with the straw tab toward
+# the camera, a can rolled over to find the code) is not an exotic case -
+# the declarations block is printed on whichever panel the filler line
+# reached, and the person scanning has no reason to know which way up it is.
+#
+# PaddleOCR's angle classifier rotates each detected text line's CROP before
+# recognition, so the TEXT usually comes back correct. The detection boxes
+# do not move: they stay in the photo's frame. On a 180-degree photo that
+# leaves every string readable and every coordinate inverted - labels sit to
+# the RIGHT of their values and rows run bottom-to-top. _column_bands then
+# reads the value column as the label band, _is_known_label rejects it, and
+# the whole declaration table is silently dropped. Confidence stays high
+# throughout, so nothing downstream can tell this happened.
+#
+# The frame is corrected here, at the only layer that still has the raw
+# geometry, so everything downstream keeps its "labels are on the left,
+# reading order is top-to-bottom" assumption unchanged.
+
+_ORIENTATION_LABEL_RE = re.compile(
+    r"\b(m\.?r\.?p|usp|mfd|mfg|manufactured|exp|expiry|use\s*by|best\s*before|"
+    r"batch|net\s*(?:qty|wt|weight|quantity)|pkd|packed)\b",
+    re.IGNORECASE,
+)
+
+
+def _flip_words_180(words: List[dict]) -> List[dict]:
+    """Rotates the word geometry 180 degrees about the content's own extent.
+
+    Flipping about the detected content rather than the image frame means
+    no image load and no new dependency - every downstream consumer
+    (row clustering, column gaps, label->value geometry) is translation
+    invariant, so the arbitrary origin costs nothing.
+    """
+    if not words:
+        return words
+    width = max(w["bbox"][2] for w in words)
+    height = max(w["bbox"][3] for w in words)
+    flipped = []
+    for w in words:
+        x0, y0, x1, y1 = w["bbox"]
+        rotated = dict(w)
+        rotated["bbox"] = [width - x1, height - y1, width - x0, height - y0]
+        flipped.append(rotated)
+    return flipped
+
+
+def _orientation_score(lines: List[OCRLine]) -> float:
+    """How much a reading looks like an upright declaration panel.
+
+    Scored on layout, not on text: with the angle classifier doing its job
+    both orientations produce the same strings at the same confidence, so
+    text quality cannot distinguish them. What does distinguish them is
+    that a label is printed to the LEFT of, or ABOVE, the value it
+    introduces - never to the right of it, and never below it.
+    """
+    score = 0.0
+    for label in lines:
+        if not _ORIENTATION_LABEL_RE.search(label.text):
+            continue
+        score += 1.0
+        height = max(1, label.bbox[3] - label.bbox[1])
+        for other in lines:
+            if other is label or other.image_index != label.image_index:
+                continue
+            if _ORIENTATION_LABEL_RE.search(other.text):
+                continue
+            same_row = (min(other.bbox[3], label.bbox[3])
+                        - max(other.bbox[1], label.bbox[1])) > 0
+            if same_row and other.bbox[0] >= label.bbox[2]:
+                score += 1.0          # value to the right: table layout
+                break
+            below = other.bbox[1] - label.bbox[3]
+            if 0 <= below <= 2 * height:
+                score += 0.5          # value underneath: stacked layout
+                break
+    return score
+
+
+def _orient(words: List[dict], image_index: int) -> List[OCRLine]:
+    """Builds lines from `words`, flipping the frame first if the photo
+    reads as upside down. Ties keep the original orientation."""
+    upright = _words_to_lines(_merge_words_across_passes(words), image_index)
+    flipped_words = _flip_words_180(words)
+    flipped = _words_to_lines(_merge_words_across_passes(flipped_words), image_index)
+    if _orientation_score(flipped) > _orientation_score(upright):
+        return flipped
+    return upright
 
 
 def _split_at_column_gaps(ordered: List[dict]) -> List[List[dict]]:
@@ -440,7 +422,9 @@ def _split_at_column_gaps(ordered: List[dict]) -> List[List[dict]]:
     return runs
 
 
-def _line_from_words(ordered: List[dict], image_index: int) -> Optional[OCRLine]:
+def _line_from_words(ordered: List[dict], image_index: int,
+                     row_index: Optional[int] = None,
+                     column_index: Optional[int] = None) -> Optional[OCRLine]:
     """Assembles one OCRLine from an ordered, single-column word run."""
     # Defensive cleanup: if two surviving OCR detections produce an identical
     # consecutive token on the same physical line, keep one. This only
@@ -466,84 +450,359 @@ def _line_from_words(ordered: List[dict], image_index: int) -> Optional[OCRLine]
         confidence=round(sum(w["confidence"] for w in cleaned) / len(cleaned), 3),
         image_index=image_index,
         words=cleaned,
+        row_index=row_index,
+        column_index=column_index,
     )
+
+
+
+# --------------------------------------------------------------------------
+# Dot-matrix / inkjet preprocessing variants
+# --------------------------------------------------------------------------
+# Coded declarations (MFG/EXP/BATCH/MRP) are inkjet-sprayed as loose dot
+# grids onto the base of a can or a foil lid: low contrast, specular glare,
+# curvature, and characters made of disconnected dots. A single OCR pass on
+# the raw photo reads these at character level roughly, not at all - "28"
+# comes back as "2B", "JUL" as "1UL", and the date then fails to parse. No
+# regex fixes that, and repairing the digits downstream would be guessing.
+#
+# The answer is more looks at the same pixels: several cheap preprocessing
+# variants, one OCR pass each, then _merge_words_across_passes (which has
+# always supported this and has been running on a single pass) keeps the
+# reading two passes agree on.
+#
+# Deliberately NOT done here: morphological opening or aggressive denoise.
+# The dots ARE the characters - erosion deletes the text it is meant to
+# clean up.
+
+MAX_OCR_PASSES = 4
+
+
+def _preprocess_variants(image):
+    """Yields (name, image) preprocessing variants, cheapest first.
+
+    Returns the original unchanged as variant 0, so the existing
+    single-pass behaviour is always still in the result set and a variant
+    can only ever ADD readings.
+    """
+    try:
+        import cv2
+    except ImportError:
+        return [("original", image)]
+
+    variants = [("original", image)]
+    if image is None or getattr(image, "ndim", 0) < 2:
+        return variants
+
+    grey = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) if image.ndim == 3 else image
+
+    # CLAHE: local contrast, which is what a glare-lit metal base needs -
+    # a global threshold that works on the lit half blows out the shadowed
+    # half of the same curved surface.
+    clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8)).apply(grey)
+    variants.append(("clahe", clahe))
+
+    # Upscale: dot-matrix glyphs are small and the recogniser needs the
+    # dots to merge into strokes. INTER_CUBIC keeps the dot structure that
+    # INTER_NEAREST would alias away.
+    variants.append(("clahe_2x", cv2.resize(clahe, None, fx=2.0, fy=2.0,
+                                            interpolation=cv2.INTER_CUBIC)))
+
+    # Adaptive threshold on the upscaled image: binarises per-neighbourhood,
+    # so it survives the illumination gradient across a cylinder.
+    variants.append(("adaptive", cv2.adaptiveThreshold(
+        variants[-1][1], 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+        cv2.THRESH_BINARY, 31, 10)))
+
+    return variants[:MAX_OCR_PASSES]
+
+
+def _rescale_words(words: List[dict], scale: float) -> List[dict]:
+    """Maps word boxes from an upscaled variant back to original-image
+    coordinates, so every pass reports geometry in one frame and
+    _merge_words_across_passes can compare boxes across passes at all."""
+    if scale == 1.0:
+        return words
+    rescaled = []
+    for w in words:
+        scaled = dict(w)
+        scaled["bbox"] = [int(round(v / scale)) for v in w["bbox"]]
+        rescaled.append(scaled)
+    return rescaled
 
 
 # --------------------------------------------------------------------------
 # Backend
 # --------------------------------------------------------------------------
 
-class PytesseractBackend:
-    """Thin OCR backend. Swap this class out to change OCR engines."""
+class PaddleOCRError(RuntimeError):
+    """PaddleOCR could not be initialised or produced no usable result."""
 
-    # Pass config 1: default page segmentation (assumes a fairly uniform
-    #   block of text - good for the bulk of the label).
-    # Pass config 2: sparse text mode (--psm 11) - looks for text anywhere on
-    #   the page with no layout assumption, so it catches isolated blocks
-    #   (e.g. a "MANUFACTURED FOR:" / "CONSUMER CARE CELL" panel in a corner)
-    #   that the default layout analysis skips entirely.
-    _PASS_CONFIGS: Tuple[Optional[str], ...] = (None, "--psm 11")
 
-    # The extra image renderings (see _preprocess_variants) are only run in
-    # sparse-text mode. They exist to rescue regions the primary Otsu
-    # rendering destroys; running every config over every variant would
-    # multiply runtime for very little extra recall.
-    _SECONDARY_CONFIG: str = "--psm 11"
+class PaddleOCRBackend:
+    """OCR backend backed by PaddleOCR. Swap this class to change engines."""
+
+    def __init__(self, engine=None, lang: str = "en"):
+        self._engine = engine if engine is not None else self._build_engine(lang)
+
+    @staticmethod
+    def _build_engine(lang: str):
+        try:
+            os.environ.setdefault("PADDLE_PDX_ENABLE_MKLDNN_BYDEFAULT", "0")
+            from paddleocr import PaddleOCR
+        except ImportError as exc:
+            raise PaddleOCRError(
+                "paddleocr is not installed. Run: pip install paddlepaddle paddleocr"
+            ) from exc
+
+        # PaddleOCR's constructor keywords changed across versions
+        # (use_angle_cls was renamed use_textline_orientation in 3.x, and
+        # show_log was removed). Try the richest form first and degrade,
+        # rather than pinning to a version we cannot verify on every
+        # machine. Getting this wrong throws TypeError at startup, which is
+        # at least loud - unlike the result-shape problem below.
+        attempts = [
+            {"use_angle_cls": True, "lang": lang, "show_log": False},
+            {"use_angle_cls": True, "lang": lang},
+            {"use_textline_orientation": True, "lang": lang},
+            {"lang": lang},
+        ]
+        last_error = None
+        for kwargs in attempts:
+            try:
+                return PaddleOCR(**kwargs)
+            except (TypeError, ValueError) as exc:
+                last_error = exc
+            except Exception as exc:
+                raise PaddleOCRError(f"Could not initialise PaddleOCR: {exc}") from exc
+        raise PaddleOCRError(
+            f"Could not initialise PaddleOCR with any known argument set: {last_error}"
+        )
+
+    # ----------------------------------------------------------------
+    # Result parsing
+    # ----------------------------------------------------------------
+
+    @staticmethod
+    def _poly_to_bbox(polygon) -> Optional[List[int]]:
+        """Paddle returns a four-point quad, which is NOT axis-aligned when
+        text is rotated or the photo skewed. Downstream expects
+        [x0, y0, x1, y1], so take the polygon's extent. A slightly loose box
+        on rotated text beats dropping the detection - the row/column logic
+        only needs roughly where a detection sits and how tall it is.
+        """
+        try:
+            xs = [float(p[0]) for p in polygon]
+            ys = [float(p[1]) for p in polygon]
+        except (TypeError, IndexError, ValueError):
+            return None
+        if not xs or not ys:
+            return None
+        return [int(min(xs)), int(min(ys)), int(max(xs)), int(max(ys))]
+
+    def _detections(self, result):
+        """Yields (text, confidence, polygon) across PaddleOCR versions.
+
+        The return shape changed between 2.x and 3.x. Handling only one
+        produces an EMPTY SCAN WITH NO ERROR on the other - the worst kind
+        of failure to diagnose - so both are supported explicitly.
+
+          2.x:  [[ [poly, (text, score)], ... ]]
+          3.x:  [{"rec_texts": [...], "rec_scores": [...], "rec_polys": [...]}]
+        """
+        if result is None:
+            return
+
+        # PaddleOCR 3.x .predict() may return an iterator/generator.
+        if not isinstance(result, (list, tuple, dict)):
+            try:
+                result = list(result)
+            except TypeError:
+                pass
+
+        if result is None:
+            return
+
+        first = result[0] if isinstance(result, (list, tuple)) and result else result
+
+        # PaddleOCR 3.x result objects may expose their data through .json.
+        if not isinstance(first, dict):
+            try:
+                data = first.json
+                if callable(data):
+                    data = data()
+
+                if isinstance(data, str):
+                    import json
+                    data = json.loads(data)
+
+                if isinstance(data, dict):
+                    first = data
+            except (AttributeError, TypeError, ValueError):
+                pass
+
+        # PaddleOCR 3.x dictionary result
+        if isinstance(first, dict):
+            texts = first.get("rec_texts")
+            scores = first.get("rec_scores")
+            polys = first.get("rec_polys")
+
+            if texts is None:
+                texts = []
+
+            if scores is None:
+                scores = []
+
+            if polys is None:
+                polys = first.get("dt_polys")
+
+            if polys is None:
+                polys = []
+
+            for i, text in enumerate(texts):
+                if i < len(polys):
+                    score = scores[i] if i < len(scores) else 0.9
+                    yield text, score, polys[i]
+            return
+
+        # PaddleOCR 3.x result object attributes
+        texts = getattr(first, "rec_texts", None)
+
+        if texts is not None:
+            scores = getattr(first, "rec_scores", None)
+            polys = getattr(first, "rec_polys", None)
+
+            if scores is None:
+                scores = []
+
+            if polys is None:
+                polys = getattr(first, "dt_polys", None)
+
+            if polys is None:
+                polys = []
+
+            for i, text in enumerate(texts):
+                if i < len(polys):
+                    score = scores[i] if i < len(scores) else 0.9
+                    yield text, score, polys[i]
+            return
+
+        # PaddleOCR 2.x result
+        page = first if isinstance(first, (list, tuple)) else result
+
+        for entry in page or []:
+            try:
+                poly, payload = entry[0], entry[1]
+                yield payload[0], payload[1], poly
+            except (TypeError, IndexError, KeyError):
+                continue
+
+    def _words_from_result(self, result, image_index: int) -> List[dict]:
+        words: List[dict] = []
+        for text, score, poly in self._detections(result):
+            text = (text or "").strip()
+            if not text:
+                continue
+            bbox = self._poly_to_bbox(poly)
+            if bbox is None or bbox[2] <= bbox[0] or bbox[3] <= bbox[1]:
+                continue  # degenerate box - unusable for layout
+            words.append({
+                "text": text,
+                "bbox": bbox,
+                # Paddle scores are already 0.0-1.0, the scale
+                # field_extractors' confidence gates expect.
+                "confidence": float(score) if score is not None else 0.9,
+                "image_index": image_index,
+                # Single pass. Kept for shape compatibility with
+                # _merge_words_across_passes, which no-ops on one pass.
+                "pass_index": 0,
+            })
+        return words
+
+    # ----------------------------------------------------------------
+    # Backend interface
+    # ----------------------------------------------------------------
+
+    def _run_engine(self, target):
+        """One OCR inference on a path or an ndarray. .ocr(cls=True) is 2.x;
+        .predict() is 3.x - same version-tolerance reasoning as
+        _build_engine."""
+        if hasattr(self._engine, "ocr"):
+            try:
+                return self._engine.ocr(target, cls=True)
+            except TypeError:
+                return self._engine.ocr(target)
+        if hasattr(self._engine, "predict"):
+            return self._engine.predict(target)
+        raise PaddleOCRError(
+            "PaddleOCR object exposes neither .ocr() nor .predict()"
+        )
 
     def read_image(self, image_path: str, image_index: int) -> List[OCRLine]:
-        img = Image.open(image_path).convert("RGB")
-        variants = _preprocess_variants(img)
-        primary = variants[0]
+        words = self._words_from_result(
+            self._run_engine(image_path), image_index)
 
-        # (image, config) pairs, each getting its own pass_index.
-        jobs = [(primary, config) for config in self._PASS_CONFIGS]
-        jobs += [(variant, self._SECONDARY_CONFIG) for variant in variants[1:]]
-
-        # Collect every word from every pass first - no line grouping yet.
-        # Dedup happens on this flat word list (by bounding-box overlap, not
-        # text equality, since passes frequently read the same physical word
-        # slightly differently, e.g. "60.00" vs "6O.OO") so that a word
-        # duplicated across passes is gone *before* it can end up
-        # concatenated into a line's text.
-        all_words: List[dict] = []
-        scale_x = primary.width / max(1, img.width)
-        scale_y = primary.height / max(1, img.height)
-        # Preprocessing currently uses uniform scaling, but keep the two axes
-        # explicit so bbox conversion stays correct if that changes later.
-        scale = (scale_x + scale_y) / 2.0
-
-        for pass_index, (image, config) in enumerate(jobs):
-            kwargs = {"config": config} if config else {}
+        # Extra passes over preprocessing variants, for inkjet/dot-matrix
+        # codes the raw pass reads at character level wrongly or not at
+        # all. Each variant's words are tagged with their own pass_index
+        # and mapped back to original-image coordinates, which is what lets
+        # _merge_words_across_passes compare them and keep the reading more
+        # than one pass agrees on.
+        #
+        # Strictly additive: pass 0 is the original image, exactly the
+        # single-pass behaviour that shipped before, so a variant can only
+        # contribute readings - never remove one.
+        for pass_index, (name, variant, scale) in enumerate(
+                self._variant_images(image_path), start=1):
             try:
-                ocr_data = pytesseract.image_to_data(
-                    image, output_type=pytesseract.Output.DICT, **kwargs
-                )
+                extra = self._words_from_result(
+                    self._run_engine(variant), image_index)
             except Exception:
-                # FIX: one failing pass used to abort the whole scan. A
-                # partial read from the surviving passes is far better than
-                # no evidence at all - and the rule engine is built to treat
-                # missing evidence as REVIEW, not as a pass.
-                continue
-            all_words.extend(_extract_words(
-                ocr_data, image_index, pass_index=pass_index, scale=scale
-            ))
+                continue  # a variant that upsets the engine is skipped, not fatal
+            for word in extra:
+                word["pass_index"] = pass_index
+                word["ocr_variant"] = name
+            words.extend(_rescale_words(extra, scale))
 
-        deduped_words = _merge_words_across_passes(all_words)
-        return _words_to_lines(deduped_words, image_index)
+        if not words:
+            return []
+        return _orient(words, image_index)
+
+    @staticmethod
+    def _variant_images(image_path: str):
+        """(name, image, scale) for each extra preprocessing pass. Empty
+        when OpenCV is unavailable or the file cannot be decoded, so the
+        pipeline degrades to the original single pass rather than failing."""
+        try:
+            import cv2
+        except ImportError:
+            return []
+        image = cv2.imread(image_path)
+        if image is None:
+            return []
+        out = []
+        for name, variant in _preprocess_variants(image)[1:]:
+            scale = variant.shape[0] / image.shape[0]
+            out.append((name, variant, scale))
+        return out
 
 
 def run_ocr(image_paths: List[str], backend=None) -> List[OCRLine]:
     """
     Runs OCR over 1-3 images (per the /scan contract) and returns a flat
-    list of OCRLine objects across all images, each tagged with its
-    1-based image_index so downstream evidence/bbox can point back to the
-    right uploaded image.
+    list of OCRLine objects across all images, each tagged with its 1-based
+    image_index so downstream evidence/bbox can point back to the right
+    uploaded image.
+
+    A single PaddleOCRBackend is constructed per call and reused across the
+    images: model loading is the expensive part, and building one per image
+    would triple a three-image scan's latency.
     """
     if not (1 <= len(image_paths) <= 3):
         raise ValueError("Expected 1 to 3 images per the /scan contract, got "
                          f"{len(image_paths)}")
 
-    backend = backend or PytesseractBackend()
+    backend = backend or PaddleOCRBackend()
     all_lines: List[OCRLine] = []
     for idx, path in enumerate(image_paths, start=1):
         all_lines.extend(backend.read_image(path, idx))

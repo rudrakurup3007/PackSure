@@ -5,22 +5,20 @@ frontend /scan and /health contracts. No OCR, extraction, or rule logic lives he
 
 from __future__ import annotations
 
-import os
 import tempfile
 import uuid
 from io import BytesIO
 from pathlib import Path
 from typing import Any, Optional
 
-import pytesseract
 from fastapi import FastAPI, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from PIL import Image, UnidentifiedImageError
 from pydantic import ValidationError
-from pytesseract import TesseractError, TesseractNotFoundError
 from fastapi.openapi.utils import get_openapi
 
+from backend.ocr_engine import PaddleOCRError
 from backend.pipeline import run_pipeline
 from backend.schemas import (
     DeclarationResponseItem,
@@ -49,10 +47,6 @@ CORS_ORIGINS = [
 ]
 
 _PDP_FIELD = "principal_display_panel_colocation"
-
-tesseract_cmd = os.environ.get("TESSERACT_CMD")
-if tesseract_cmd:
-    pytesseract.pytesseract.tesseract_cmd = tesseract_cmd
 
 app = FastAPI(
     title="PackSure API",
@@ -213,17 +207,11 @@ async def scan(images: Optional[list[UploadFile]] = File(default=None)):
             "INVALID_IMAGE",
             "The uploaded image is invalid or corrupted.",
         )
-    except TesseractNotFoundError:
+    except PaddleOCRError as exc:
         return _error_response(
             503,
             "OCR_UNAVAILABLE",
-            "Tesseract OCR is not installed or not on PATH. Install tesseract-ocr, or set TESSERACT_CMD to the tesseract executable.",
-        )
-    except TesseractError:
-        return _error_response(
-            500,
-            "OCR_FAILED",
-            "OCR failed while reading the uploaded package images.",
+            f"OCR engine is unavailable: {exc}",
         )
     except Exception:
         return _error_response(

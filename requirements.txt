@@ -1,6 +1,32 @@
-fastapi
-uvicorn[standard]
-python-multipart
-pytesseract
-Pillow
-python-dotenv
+# PackSure — OCR & extraction pipeline (Python dependencies)
+#
+#   pip install -r requirements.txt
+#
+# The repo root is a Node/Vite project, so nothing else declares these.
+#
+# AFTER INSTALLING, run this ONCE on a good connection, before any demo or
+# deployment — it downloads ~100-200MB of PaddleOCR models into ~/.paddleocr:
+#
+#   python -c "from paddleocr import PaddleOCR; PaddleOCR(lang='en'); print('models ready')"
+#
+# Without that step the first /scan request hangs on the download or fails.
+# There is no fallback OCR engine, so this is a hard dependency.
+
+# --- OCR ---
+paddlepaddle>=2.5
+# PaddleOCR changed both its constructor keywords and its result shape
+# between 2.x and 3.x. PaddleOCRBackend handles both, so the version is left
+# unpinned — but if every field suddenly comes back null on packs that used
+# to work, pin this to a known-good version and see HANDOFF_OCR.md §6.
+paddleocr>=2.7
+
+# --- Extraction ---
+# Format-agnostic date parsing (DDMMMYYYY, DD/MM/YY, ISO, "31 July 2026").
+python-dateutil>=2.8
+# Fuzzy matching for OCR-corrupted labels, units and commodity descriptors.
+rapidfuzz>=3.0
+
+# --- Tests ---
+# The 78 smoke tests need neither PaddleOCR nor image files; they build
+# OCRLine objects directly and run in well under a second.
+pytest>=7.0

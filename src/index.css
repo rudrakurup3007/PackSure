@@ -1,1 +1,511 @@
 @import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+  /* PackSure Core Palette Tokens */
+  --color-petrol: #145967;
+  --color-petrol-hover: #104955;
+  --color-petrol-subtle: #EDF6F7;
+  --color-sage: #5E8268;
+  --color-sage-light: #E3ECE6;
+  --color-warm-sand: #C5A77B;
+  --color-warm-sand-light: #F4ECE0;
+  --color-warm-ivory: #FAF8F5;
+  --color-charcoal: #141E22;
+
+  /* Semantic Compliance Tokens */
+  --color-compliant-green: #059669;
+  --color-violation-red: #E11D48;
+  --color-review-amber: #D97706;
+  --color-neutral-slate: #5D6D74;
+}
+
+/* Light Theme Root Tokens: Warm Ivory, Deep Teal / Petrol, Sage, Charcoal & Warm Gray */
+:root {
+  color-scheme: light;
+
+  /* Neutral Scale: Warm Ivory canvas through Warm Slate to Charcoal headings */
+  --color-slate-50: #FAF8F5;   /* Warm Ivory canvas */
+  --color-slate-100: #F3EFE9;  /* Soft Warm Off-White / muted chip */
+  --color-slate-200: #E5E0D8;  /* Warm Gray borders */
+  --color-slate-300: #D5CEC4;  /* Medium Warm Gray border / divider */
+  --color-slate-400: #8E989E;  /* Secondary muted label */
+  --color-slate-500: #5D6D74;  /* Muted Slate secondary text */
+  --color-slate-600: #42525A;  /* Charcoal secondary text */
+  --color-slate-700: #2C3A41;  /* Charcoal body text */
+  --color-slate-800: #1C272C;  /* Deep Charcoal subheadings */
+  --color-slate-900: #141E22;  /* Charcoal primary headings & deep containers */
+  --color-slate-950: #0C1417;  /* High-contrast black-charcoal */
+
+  /* Primary Accent Scale (mapped to teal & petrol): Deep Teal / Petrol */
+  --color-teal-50: #EDF6F7;  /* Soft pale petrol wash */
+  --color-teal-100: #D8ECF0; /* Soft teal badge/chip */
+  --color-teal-200: #B4DDE4; /* Soft teal border */
+  --color-teal-300: #7DC6D2; /* Mid-soft teal */
+  --color-teal-400: #3895A5; /* Vibrant accent teal */
+  --color-teal-500: #207D8E; /* Medium petrol */
+  --color-teal-600: #145967; /* Deep Teal / Petrol primary brand color */
+  --color-teal-700: #104955; /* Petrol hover / active */
+  --color-teal-800: #0D3B44; /* Dark petrol */
+  --color-teal-900: #0A2E35; /* Deep petrol container */
+  --color-teal-950: #061F24; /* Darkest petrol tint */
+
+  --color-indigo-50: #EDF6F7;
+  --color-indigo-100: #D8ECF0;
+  --color-indigo-200: #B4DDE4;
+  --color-indigo-300: #7DC6D2;
+  --color-indigo-400: #3895A5;
+  --color-indigo-500: #207D8E;
+  --color-indigo-600: #145967;
+  --color-indigo-700: #104955;
+  --color-indigo-800: #0D3B44;
+  --color-indigo-900: #0A2E35;
+  --color-indigo-950: #061F24;
+
+  /* Semantic status colors (non-neon, authoritative regulatory) */
+  --color-emerald-50: #ECFDF5;
+  --color-emerald-100: #D1FAE5;
+  --color-emerald-200: #A7F3D0;
+  --color-emerald-600: #059669; /* COMPLIANT */
+  --color-emerald-700: #047857;
+  --color-emerald-800: #065F46;
+
+  --color-rose-50: #FFF1F2;
+  --color-rose-100: #FFE4E6;
+  --color-rose-200: #FECDD3;
+  --color-rose-600: #E11D48;   /* NON-COMPLIANT */
+  --color-rose-700: #BE123C;
+  --color-rose-800: #9F1239;
+
+  --color-amber-50: #FFFBEB;
+  --color-amber-100: #FEF3C7;
+  --color-amber-200: #FDE68A;
+  --color-amber-600: #D97706;   /* REVIEW / WARNING */
+  --color-amber-700: #B45309;
+  --color-amber-800: #92400E;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: #FAF8F5; /* Warm Ivory canvas */
+  color: #141E22;            /* Charcoal headings / body */
+  transition: background-color 200ms ease, color 200ms ease, border-color 200ms ease;
+}
+
+/* PackSure Deep Charcoal-Teal Dark Theme Architecture */
+html.dark {
+  color-scheme: dark;
+
+  /* Deep charcoal-teal canvas */
+  --color-slate-950: #0A1317;
+  /* Slightly lighter dark cards */
+  --color-slate-900: #122026;
+  /* Elevated sub-surface / inset / hover */
+  --color-slate-800: #182A32;
+  /* Muted teal/slate borders */
+  --color-slate-700: #223842;
+  --color-slate-600: #37515D;
+  /* Readable high-contrast typography hierarchy */
+  --color-slate-500: #6F8893;
+  --color-slate-400: #9CB2BC;
+  --color-slate-300: #C9D8DE;
+  --color-slate-200: #E4EDEF;
+  /* Warm white text */
+  --color-slate-100: #F2F6F5;
+  --color-slate-50: #182A32;
+
+  /* Muted deep teal primary */
+  --color-teal-600: #227586; /* primary button / solid */
+  --color-teal-500: #2D8B9E; /* hover */
+  --color-teal-700: #1A5E6D; /* active */
+  --color-teal-400: #48ADC0; /* accent text */
+  --color-teal-300: #76C8D7;
+  --color-teal-200: #B0E2EC;
+  --color-teal-950: #0C1D23;
+  --color-teal-900: #102B33;
+  --color-teal-800: #144955;
+  --color-teal-50: #182A32;
+  --color-teal-100: #1D333D;
+
+  --color-indigo-600: #227586; /* primary button / solid */
+  --color-indigo-500: #2D8B9E; /* hover */
+  --color-indigo-700: #1A5E6D; /* active */
+  --color-indigo-400: #48ADC0; /* accent text */
+  --color-indigo-300: #76C8D7;
+  --color-indigo-200: #B0E2EC;
+  --color-indigo-950: #0C1D23;
+  --color-indigo-900: #102B33;
+
+  /* Balanced non-neon semantic colors for dark mode */
+  --color-emerald-950: #0B241C;
+  --color-emerald-900: #10362B;
+  --color-emerald-400: #34D399;
+  --color-emerald-300: #6EE7B7;
+
+  --color-rose-950: #2A1016;
+  --color-rose-900: #421622;
+  --color-rose-400: #FB7185;
+  --color-rose-300: #FDA4AF;
+
+  --color-amber-950: #2B1B0C;
+  --color-amber-900: #422B14;
+  --color-amber-400: #FBBF24;
+  --color-amber-300: #FCD34D;
+
+  --color-cyan-950: #0C1D23;
+  --color-cyan-900: #102B33;
+  --color-cyan-400: #48ADC0;
+  --color-cyan-300: #76C8D7;
+}
+
+html.dark body {
+  background-color: #0A1317; /* Deep charcoal-teal background */
+  color: #F2F6F5;            /* Warm white text */
+}
+
+/* Package photographs and viewfinders must remain clear and unfettered across both themes */
+img, canvas {
+  filter: none !important;
+}
+
+@keyframes scanline {
+  0% {
+    top: 2%;
+    opacity: 0.75;
+  }
+  50% {
+    top: 94%;
+    opacity: 1;
+  }
+  100% {
+    top: 2%;
+    opacity: 0.75;
+  }
+}
+
+.animate-scan-beam {
+  animation: scanline 2.2s ease-in-out infinite;
+}
+
+@keyframes scanline-subtle {
+  0% {
+    top: 0%;
+    opacity: 0.9;
+  }
+  100% {
+    top: 100%;
+    opacity: 0;
+  }
+}
+
+.animate-scan-subtle {
+  animation: scanline-subtle 1.2s ease-out forwards;
+}
+
+/* Regulatory Audit Document Print Styles */
+@media print {
+  header#app-header,
+  footer,
+  #api-mode-toggle,
+  #theme-toggle-btn,
+  .no-print,
+  button:not(.allow-print) {
+    display: none !important;
+  }
+
+  body {
+    background-color: #ffffff !important;
+    color: #0f172a !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  #results-dashboard,
+  #audit-report-view {
+    padding: 0.5cm !important;
+    margin: 0 !important;
+    max-width: 100% !important;
+    box-shadow: none !important;
+  }
+
+  /* Prevent awkward page breaks in key audit sections */
+  section {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+}
+
+
+/* -------------------------------------------------------------------------- */
+/* PackSure AI — editorial background motion system                           */
+/* Five visual directions: flowing / shadow / type / paper / grid              */
+/* -------------------------------------------------------------------------- */
+
+.packsure-app-shell {
+  position: relative;
+  isolation: isolate;
+  min-height: 100vh;
+  background: #faf8f5;
+}
+
+html.dark .packsure-app-shell {
+  background: #0a1317;
+}
+
+.packsure-background-root {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.packsure-app-shell > :not(.packsure-background-root):not(#workspace-transition-screen) {
+  position: relative;
+  z-index: 1;
+}
+
+/* Keep the original workspace transition above every background/content layer. */
+#workspace-transition-screen {
+  z-index: 50 !important;
+}
+
+.packsure-bg-scene {
+  position: absolute;
+  inset: -8%;
+  overflow: hidden;
+  transform: translateZ(0);
+}
+
+.packsure-bg-vignette {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg, rgba(250,248,245,.18), rgba(250,248,245,.02) 36%, rgba(250,248,245,.28)),
+    radial-gradient(circle at 50% 42%, transparent 0 48%, rgba(20,30,34,.06) 100%);
+}
+
+html.dark .packsure-bg-vignette {
+  background:
+    linear-gradient(180deg, rgba(10,19,23,.08), rgba(10,19,23,.01) 38%, rgba(10,19,23,.34)),
+    radial-gradient(circle at 50% 42%, transparent 0 48%, rgba(0,0,0,.18) 100%);
+}
+
+.packsure-bg-palette {
+  position: absolute;
+  left: 6%;
+  bottom: 8%;
+  display: flex;
+  gap: 8px;
+  opacity: .75;
+}
+
+.packsure-bg-palette .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(20,30,34,.14);
+}
+.packsure-bg-palette .ivory { background: #f7efe2; }
+.packsure-bg-palette .petrol { background: #145967; }
+.packsure-bg-palette .terracotta { background: #c9653e; }
+
+/* 1. Flowing shapes */
+.packsure-flowing.is-light {
+  background: #f7f0e4;
+}
+.packsure-flowing.is-dark {
+  background: #071317;
+}
+.packsure-flowing .flow {
+  position: absolute;
+  width: 72vw;
+  height: 19vw;
+  min-height: 150px;
+  max-height: 280px;
+  border-radius: 55% 45% 60% 40% / 60% 55% 45% 40%;
+  transform-origin: center;
+  filter: drop-shadow(0 24px 28px rgba(18,40,43,.10));
+  mix-blend-mode: multiply;
+}
+.packsure-flowing.is-dark .flow {
+  mix-blend-mode: screen;
+  filter: drop-shadow(0 18px 26px rgba(0,0,0,.28));
+}
+.packsure-flowing .flow-one {
+  left: -10%; top: 14%;
+  background: linear-gradient(100deg, rgba(201,101,62,.84), rgba(245,218,190,.58), rgba(20,89,103,.80));
+  transform: rotate(-8deg);
+  animation: packsure-flow-one 24s ease-in-out infinite alternate;
+}
+.packsure-flowing .flow-two {
+  right: -12%; top: 35%;
+  background: linear-gradient(100deg, rgba(20,89,103,.80), rgba(116,142,120,.50), rgba(201,101,62,.68));
+  transform: rotate(-22deg);
+  animation: packsure-flow-two 29s ease-in-out infinite alternate;
+}
+.packsure-flowing .flow-three {
+  left: 4%; bottom: 10%;
+  background: linear-gradient(100deg, rgba(116,142,120,.42), rgba(245,218,190,.64), rgba(20,89,103,.62));
+  transform: rotate(8deg);
+  animation: packsure-flow-three 31s ease-in-out infinite alternate;
+}
+.packsure-flowing .flow-four {
+  right: -4%; bottom: 0%;
+  width: 62vw;
+  background: linear-gradient(100deg, rgba(20,89,103,.72), rgba(201,101,62,.52), rgba(245,218,190,.36));
+  transform: rotate(-7deg);
+  animation: packsure-flow-four 27s ease-in-out infinite alternate;
+}
+.packsure-flowing .flow-hairline {
+  position: absolute;
+  width: 115vw;
+  height: 1px;
+  left: -8%;
+  top: 51%;
+  background: rgba(20,89,103,.25);
+  transform: rotate(-10deg);
+  animation: packsure-hairline 22s ease-in-out infinite alternate;
+}
+html.dark .packsure-flowing .flow-one { background: linear-gradient(100deg, rgba(201,101,62,.74), rgba(20,89,103,.68), rgba(7,19,23,.30)); }
+html.dark .packsure-flowing .flow-two { background: linear-gradient(100deg, rgba(20,89,103,.82), rgba(53,94,89,.62), rgba(201,101,62,.64)); }
+html.dark .packsure-flowing .flow-three { background: linear-gradient(100deg, rgba(20,89,103,.70), rgba(24,56,54,.72), rgba(201,101,62,.42)); }
+html.dark .packsure-flowing .flow-four { background: linear-gradient(100deg, rgba(10,46,53,.92), rgba(20,89,103,.74), rgba(201,101,62,.48)); }
+html.dark .packsure-flowing .flow-hairline { background: rgba(247,239,226,.18); }
+
+@keyframes packsure-flow-one { to { transform: translate3d(8vw, 3vh, 0) rotate(-2deg) scale(1.05); } }
+@keyframes packsure-flow-two { to { transform: translate3d(-7vw, -4vh, 0) rotate(-14deg) scale(.96); } }
+@keyframes packsure-flow-three { to { transform: translate3d(6vw, -2vh, 0) rotate(13deg) scale(1.04); } }
+@keyframes packsure-flow-four { to { transform: translate3d(-5vw, 4vh, 0) rotate(-12deg) scale(1.05); } }
+@keyframes packsure-hairline { to { transform: translate3d(3vw, 1vh, 0) rotate(-7deg); } }
+
+/* 2. Shadow play */
+.packsure-shadow-play.is-light { background: #efe5d4; }
+.packsure-shadow-play.is-dark { background: #0a1618; }
+.packsure-shadow-play .sun-plane {
+  position: absolute; inset: 0;
+  background: linear-gradient(90deg, rgba(255,249,238,.42), rgba(255,249,238,.05) 56%, rgba(201,101,62,.08));
+}
+.packsure-shadow-play.is-dark .sun-plane { background: linear-gradient(90deg, rgba(25,61,60,.32), rgba(10,19,23,.04) 56%, rgba(201,101,62,.12)); }
+.packsure-shadow-play .architecture {
+  position: absolute;
+  background: rgba(255,248,235,.70);
+  box-shadow: 0 40px 90px rgba(76,55,34,.10);
+}
+.packsure-shadow-play.is-dark .architecture { background: rgba(27,66,64,.38); box-shadow: 0 40px 90px rgba(0,0,0,.34); }
+.packsure-shadow-play .arch-left { width: 34vw; height: 110vh; left: 9%; top: -10%; border-radius: 0 0 44% 44%; transform: rotate(5deg); }
+.packsure-shadow-play .arch-right { width: 22vw; height: 120vh; right: 8%; top: -8%; transform: rotate(-8deg); }
+.packsure-shadow-play .moving-shadow {
+  position: absolute;
+  width: 52vw; height: 24vw;
+  background: rgba(62,46,34,.18);
+  filter: blur(16px);
+  transform: rotate(-20deg);
+}
+.packsure-shadow-play.is-dark .moving-shadow { background: rgba(0,0,0,.38); }
+.packsure-shadow-play .shadow-a { left: -8%; top: 14%; animation: packsure-shadow-a 26s ease-in-out infinite alternate; }
+.packsure-shadow-play .shadow-b { right: -12%; top: 44%; animation: packsure-shadow-b 32s ease-in-out infinite alternate; }
+.packsure-shadow-play .shadow-c { left: 18%; bottom: -5%; animation: packsure-shadow-c 29s ease-in-out infinite alternate; }
+@keyframes packsure-shadow-a { to { transform: translate(12vw, 6vh) rotate(-12deg) scale(1.08); opacity: .72; } }
+@keyframes packsure-shadow-b { to { transform: translate(-10vw, -5vh) rotate(-26deg) scale(.92); opacity: .55; } }
+@keyframes packsure-shadow-c { to { transform: translate(8vw, -8vh) rotate(-14deg) scale(1.04); opacity: .64; } }
+
+/* 3. Kinetic typography */
+.packsure-kinetic-type.is-light { background: #f5ecdf; }
+.packsure-kinetic-type.is-dark { background: #081417; }
+.packsure-kinetic-type .type-word {
+  position: absolute;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-weight: 500;
+  line-height: .72;
+  letter-spacing: -.075em;
+  white-space: nowrap;
+  user-select: none;
+}
+.packsure-kinetic-type.is-light .type-word { color: rgba(57,52,44,.18); }
+.packsure-kinetic-type.is-dark .type-word { color: rgba(236,226,208,.13); }
+.packsure-kinetic-type .type-pack { font-size: clamp(150px, 25vw, 430px); left: -8%; top: 21%; animation: packsure-type-pack 34s ease-in-out infinite alternate; }
+.packsure-kinetic-type .type-verify { font-size: clamp(100px, 16vw, 280px); right: -5%; bottom: 10%; opacity: .78; animation: packsure-type-verify 30s ease-in-out infinite alternate; }
+.packsure-kinetic-type .type-rule { position: absolute; width: 60vw; height: 1px; top: 34%; left: 25%; background: rgba(20,89,103,.20); transform: rotate(-8deg); animation: packsure-type-rule 20s ease-in-out infinite alternate; }
+.packsure-kinetic-type .type-accent { position: absolute; width: 80px; height: 7px; background: #c9653e; right: 18%; top: 61%; animation: packsure-type-accent 17s ease-in-out infinite alternate; }
+@keyframes packsure-type-pack { to { transform: translate3d(6vw, -1.5vh, 0); } }
+@keyframes packsure-type-verify { to { transform: translate3d(-5vw, 2vh, 0); } }
+@keyframes packsure-type-rule { to { transform: translate3d(3vw, 2vh, 0) rotate(-5deg); opacity: .32; } }
+@keyframes packsure-type-accent { to { transform: translate3d(-4vw, 3vh, 0); width: 120px; } }
+
+/* 4. Paper flow */
+.packsure-paper-flow.is-light { background: #f4ede1; }
+.packsure-paper-flow.is-dark { background: #091416; }
+.packsure-paper-flow .paper-sheet {
+  position: absolute;
+  width: 88vw; height: 62vh;
+  border-radius: 3% 46% 6% 35%;
+  transform-origin: center;
+  box-shadow: 0 40px 80px rgba(44,34,24,.12), inset 0 1px rgba(255,255,255,.32);
+}
+.packsure-paper-flow.is-dark .paper-sheet { box-shadow: 0 40px 80px rgba(0,0,0,.36), inset 0 1px rgba(255,255,255,.06); }
+.packsure-paper-flow .paper-back { left: -22%; top: 4%; background: #ded2bf; transform: rotate(-10deg); animation: packsure-paper-back 28s ease-in-out infinite alternate; }
+.packsure-paper-flow .paper-mid { left: -2%; top: 22%; background: #f7f0e5; transform: rotate(8deg); animation: packsure-paper-mid 31s ease-in-out infinite alternate; }
+.packsure-paper-flow .paper-front { right: -28%; bottom: -6%; background: #d9e0d5; transform: rotate(-7deg); animation: packsure-paper-front 33s ease-in-out infinite alternate; }
+.packsure-paper-flow .fold-accent { position:absolute; width: 35vw; height: 7vh; right: -2%; top: 17%; background: #c9653e; transform: rotate(23deg); opacity: .72; filter: blur(.3px); animation: packsure-paper-accent 25s ease-in-out infinite alternate; }
+.packsure-paper-flow.is-dark .paper-back { background: #132f31; }
+.packsure-paper-flow.is-dark .paper-mid { background: #173c3d; }
+.packsure-paper-flow.is-dark .paper-front { background: #0f292b; }
+.packsure-paper-flow.is-dark .fold-accent { background: #c9653e; opacity: .78; }
+@keyframes packsure-paper-back { to { transform: translate3d(5vw, 3vh, 0) rotate(-5deg); } }
+@keyframes packsure-paper-mid { to { transform: translate3d(-4vw, -2vh, 0) rotate(13deg); } }
+@keyframes packsure-paper-front { to { transform: translate3d(-5vw, -4vh, 0) rotate(-2deg); } }
+@keyframes packsure-paper-accent { to { transform: translate3d(-6vw, 3vh, 0) rotate(17deg); width: 28vw; } }
+
+/* 5. Abstract grid */
+.packsure-abstract-grid.is-light { background: #f7f0e5; }
+.packsure-abstract-grid.is-dark { background: #0a1518; }
+.packsure-abstract-grid .grid-lines {
+  position: absolute; inset: 8% 12%;
+  background-image: linear-gradient(rgba(20,89,103,.13) 1px, transparent 1px), linear-gradient(90deg, rgba(20,89,103,.13) 1px, transparent 1px);
+  background-size: 18vw 18vw;
+  animation: packsure-grid-lines 42s linear infinite alternate;
+}
+.packsure-abstract-grid.is-dark .grid-lines { background-image: linear-gradient(rgba(206,225,215,.11) 1px, transparent 1px), linear-gradient(90deg, rgba(206,225,215,.11) 1px, transparent 1px); }
+.packsure-abstract-grid .grid-block { position:absolute; box-shadow: 0 18px 42px rgba(20,30,34,.08); }
+.packsure-abstract-grid.is-dark .grid-block { box-shadow: 0 18px 42px rgba(0,0,0,.26); }
+.block-a { width: 24vw; height: 20vh; left: -5%; top: 13%; background: rgba(201,101,62,.78); animation: packsure-grid-a 26s ease-in-out infinite alternate; }
+.block-b { width: 16vw; height: 28vh; left: 26%; top: 4%; background: rgba(20,89,103,.80); animation: packsure-grid-b 32s ease-in-out infinite alternate; }
+.block-c { width: 12vw; height: 17vh; left: 45%; top: 27%; background: rgba(219,204,181,.82); animation: packsure-grid-c 29s ease-in-out infinite alternate; }
+.block-d { width: 27vw; height: 24vh; right: -8%; top: 11%; background: rgba(224,216,199,.78); animation: packsure-grid-d 35s ease-in-out infinite alternate; }
+.block-e { width: 18vw; height: 19vh; right: 14%; bottom: 7%; background: rgba(20,89,103,.72); animation: packsure-grid-e 30s ease-in-out infinite alternate; }
+.block-f { width: 14vw; height: 25vh; left: 34%; bottom: -7%; background: rgba(201,101,62,.64); animation: packsure-grid-f 34s ease-in-out infinite alternate; }
+html.dark .packsure-abstract-grid .block-a { background: rgba(201,101,62,.72); }
+html.dark .packsure-abstract-grid .block-b { background: rgba(20,89,103,.72); }
+html.dark .packsure-abstract-grid .block-c { background: rgba(215,203,184,.14); }
+html.dark .packsure-abstract-grid .block-d { background: rgba(26,56,58,.70); }
+html.dark .packsure-abstract-grid .block-e { background: rgba(20,89,103,.68); }
+html.dark .packsure-abstract-grid .block-f { background: rgba(201,101,62,.58); }
+@keyframes packsure-grid-lines { to { transform: translate3d(3vw, -2vh, 0); } }
+@keyframes packsure-grid-a { to { transform: translate3d(7vw, 3vh, 0); } }
+@keyframes packsure-grid-b { to { transform: translate3d(-4vw, 4vh, 0); } }
+@keyframes packsure-grid-c { to { transform: translate3d(5vw, -3vh, 0); } }
+@keyframes packsure-grid-d { to { transform: translate3d(-6vw, 5vh, 0); } }
+@keyframes packsure-grid-e { to { transform: translate3d(-4vw, -4vh, 0); } }
+@keyframes packsure-grid-f { to { transform: translate3d(3vw, -2vh, 0) rotate(2deg); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .packsure-bg-scene *,
+  .packsure-app-shell > :not(.packsure-background-root):not(#workspace-transition-screen) {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .packsure-flowing .flow { width: 105vw; height: 25vw; }
+  .packsure-shadow-play .moving-shadow { width: 80vw; height: 34vw; }
+  .packsure-kinetic-type .type-pack { font-size: 34vw; }
+  .packsure-kinetic-type .type-verify { font-size: 24vw; }
+  .packsure-paper-flow .paper-sheet { width: 118vw; height: 48vh; }
+  .packsure-abstract-grid .grid-lines { background-size: 32vw 32vw; }
+}

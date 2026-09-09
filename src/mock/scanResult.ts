@@ -131,3 +131,84 @@ export const COMPLIANT_MOCK_SCAN_RESULT: ScanResult = {
   ],
   violations: [],
 };
+
+/**
+ * Review Required / Low Confidence scenario mock for testing edge cases
+ */
+export const REVIEW_REQUIRED_MOCK_SCAN_RESULT: ScanResult = {
+  inspection_id: 'insp_00742',
+  product: {
+    type: 'packaged_beverage',
+    name: 'Artisan Spiced Herbal Chai',
+  },
+  overall_status: 'WARNING',
+  score: 68,
+  declarations: [
+    {
+      field: 'mrp',
+      value: '₹ 240.00 (Incl. of all taxes)',
+      image_index: 1,
+      bbox: [110, 80, 340, 115],
+      confidence: 0.92,
+    },
+    {
+      field: 'unit_sale_price',
+      value: '₹ 1.20 / g',
+      image_index: 1,
+      bbox: [110, 120, 260, 145],
+      confidence: 0.88,
+    },
+    {
+      field: 'net_quantity',
+      value: '200 g',
+      image_index: 2,
+      bbox: [120, 280, 240, 315],
+      confidence: 0.94,
+    },
+    {
+      field: 'expiry_date',
+      value: 'LOT #98 EXP: 08/2026?',
+      image_index: 2,
+      bbox: [280, 90, 460, 120],
+      confidence: 0.62,
+    },
+    {
+      field: 'manufacturer_name',
+      value: 'Himalayan Botanicals & Herbs Co.',
+      image_index: 1,
+      bbox: [50, 420, 390, 455],
+      confidence: 0.74,
+    },
+    {
+      field: 'fssai_license',
+      value: 'Lic. No. 10021011000456',
+      image_index: 2,
+      bbox: [60, 480, 360, 510],
+      confidence: 0.95,
+    },
+  ],
+  violations: [
+    {
+      field: 'expiry_date',
+      status: 'WARNING',
+      rule_id: 'PCR-R6-1-D',
+      reason: 'Low OCR confidence (62%) on dot-matrix stamp. Character legibility is borderline due to curved surface; manual verification recommended under Rule 6(1)(d).',
+      evidence: {
+        value: 'LOT #98 EXP: 08/2026?',
+        image_index: 2,
+        bbox: [280, 90, 460, 120],
+      },
+    },
+    {
+      field: 'manufacturer_name',
+      status: 'WARNING',
+      rule_id: 'PCR-R6-1-A',
+      reason: 'Physical manufacturing facility address appears partially obscured near package seam. Physical inspection recommended to ensure complete postal PIN code.',
+      evidence: {
+        value: 'Himalayan Botanicals & Herbs Co.',
+        image_index: 1,
+        bbox: [50, 420, 390, 455],
+      },
+    },
+  ],
+};

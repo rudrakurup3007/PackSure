@@ -1,6 +1,8 @@
 {
-  "name": "PackSure AI",
+  "name": "Remix Remix Remix PackSure AI",
   "description": "AI-powered packaged commodity compliance inspection scanner and evidence dashboard.",
   "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }

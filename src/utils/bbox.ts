@@ -18,7 +18,12 @@ export function isValidBbox(bbox?: unknown): bbox is BoundingBox {
   if (!Array.isArray(bbox) || bbox.length !== 4) {
     return false;
   }
-  return bbox.every((val) => typeof val === 'number' && !isNaN(val) && val >= 0);
+  const allNumbers = bbox.every((val) => typeof val === 'number' && !isNaN(val) && val >= 0);
+  if (!allNumbers) return false;
+  const [x1, y1, x2, y2] = bbox;
+  // Reject point/empty zero-area bounding boxes e.g. [0, 0, 0, 0]
+  if (x1 === x2 && y1 === y2) return false;
+  return true;
 }
 
 /**

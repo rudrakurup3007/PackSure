@@ -121,6 +121,26 @@ MAX_IMAGES = 3
 
 
 def extract_declarations(lines: List[OCRLine]) -> dict:
+    # FIX (two-column declaration tables): many packs print the variable
+    # declarations as a left column of labels beside a right column of
+    # values. ocr_engine._split_at_column_gaps correctly separates those
+    # into distinct OCRLines, but nothing put them back together - every
+    # extractor below looks for a label and its value on the same line or
+    # the next one, and neither holds across columns. Worse, under
+    # perspective skew the value's row does not line up with its label's
+    # row at all, so no geometric pairing recovers it either.
+    #
+    # merge_label_value_columns pairs the two columns SPATIALLY - by the
+    # OCR engine's row_index/column_index where they exist, by bounding-box
+    # geometry otherwise, and by rank only for a value column that is
+    # uniformly offset from its labels (the skewed sticker case, where
+    # order survives and position does not) - then appends synthesized
+    # "label value" lines. This is structural, not a per-field patch: every
+    # fx.extract_* call below now sees the same-line shape it already
+    # handles, with no change to its own matching logic. The original
+    # unmerged lines are kept alongside.
+    lines = fx.merge_label_value_columns(lines)
+
     manufacturing_date, expiry_date = fx.extract_manufacturing_and_expiry_dates(lines)
     country_of_origin, is_imported = fx.extract_country_of_origin(lines)
 
@@ -136,6 +156,13 @@ def extract_declarations(lines: List[OCRLine]) -> dict:
         "unit_sale_price": fx.extract_unit_sale_price(lines),
         "dimensions": fx.extract_dimensions(lines),
     }
+    # Declaration-table pairing (ordinal indexing). Many Indian packs print
+    # the variable declarations as a label column beside a value column, and
+    # fill-time printing routinely offsets the two, so row-based pairing
+    # reads the wrong row. Ordinal indexing within a validated table block
+    # handles that; see field_extractors._detect_declaration_table for the
+    # guards that make it safe.
+    #
     declarations["principal_display_panel_colocation"] = fx.extract_pdp_colocation_evidence(
         lines, declarations["manufacturer"]
     )
@@ -169,6 +196,9 @@ def run_pipeline(image_paths: List[str]) -> dict:
         if not Path(path).is_file():
             raise FileNotFoundError(f"OCR image not found: {path}")
 
+    # PaddleOCR is the only engine. run_ocr constructs the backend once
+    # and reuses it across the images in this scan - model loading is the
+    # expensive part, so building one per image would triple latency.
     lines = run_ocr([str(path) for path in paths])
     return extract_declarations(lines)
 

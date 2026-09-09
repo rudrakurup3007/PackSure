@@ -14,32 +14,32 @@ export const ComplianceScore: React.FC<ComplianceScoreProps> = ({ score, size = 
 
   const colorConfig = isHigh
     ? {
-        stroke: '#10b981', // emerald-500
-        text: 'text-emerald-700 dark:text-emerald-400',
-        bg: 'bg-emerald-50/70 dark:bg-emerald-950/30',
-        border: 'border-emerald-200 dark:border-emerald-800',
+        stroke: '#059669', // Emerald
+        text: 'text-emerald-800 dark:text-emerald-300',
+        bg: 'bg-emerald-50/60 dark:bg-emerald-950/30',
+        border: 'border-emerald-200/80 dark:border-emerald-800/60',
         label: 'High Compliance',
       }
     : isMedium
     ? {
-        stroke: '#f59e0b', // amber-500
-        text: 'text-amber-700 dark:text-amber-400',
-        bg: 'bg-amber-50/70 dark:bg-amber-950/30',
-        border: 'border-amber-200 dark:border-amber-800',
+        stroke: '#D97706', // Amber
+        text: 'text-amber-800 dark:text-amber-300',
+        bg: 'bg-amber-50/60 dark:bg-amber-950/30',
+        border: 'border-amber-200/80 dark:border-amber-800/60',
         label: 'Violations Detected',
       }
     : {
-        stroke: '#ef4444', // red-500
-        text: 'text-rose-700 dark:text-rose-400',
-        bg: 'bg-rose-50/70 dark:bg-rose-950/30',
-        border: 'border-rose-200 dark:border-rose-800',
+        stroke: '#E11D48', // Rose
+        text: 'text-rose-800 dark:text-rose-300',
+        bg: 'bg-rose-50/60 dark:bg-rose-950/30',
+        border: 'border-rose-200/80 dark:border-rose-800/60',
         label: 'Severe Non-Compliance',
       };
 
   const dimensions = {
-    sm: { radius: 36, strokeWidth: 7, svgSize: 88, textSize: 'text-2xl' },
-    md: { radius: 52, strokeWidth: 9, svgSize: 128, textSize: 'text-3xl sm:text-4xl' },
-    lg: { radius: 68, strokeWidth: 11, svgSize: 164, textSize: 'text-5xl' },
+    sm: { radius: 32, strokeWidth: 6, svgSize: 76, textSize: 'text-xl' },
+    md: { radius: 40, strokeWidth: 7.5, svgSize: 96, textSize: 'text-2xl sm:text-3xl' },
+    lg: { radius: 60, strokeWidth: 9, svgSize: 144, textSize: 'text-4xl sm:text-5xl' },
   }[size];
 
   const circumference = 2 * Math.PI * dimensions.radius;
@@ -48,7 +48,7 @@ export const ComplianceScore: React.FC<ComplianceScoreProps> = ({ score, size = 
   return (
     <div
       id="compliance-score-card"
-      className={`flex items-center gap-5 p-5 rounded-2xl border ${colorConfig.bg} ${colorConfig.border} shadow-2xs`}
+      className={`flex items-center gap-3.5 sm:gap-4 p-4 sm:p-5 rounded-2xl border ${colorConfig.bg} ${colorConfig.border} shadow-xs transition-colors duration-200 overflow-hidden min-w-0 w-full max-w-full`}
     >
       <div className="relative shrink-0 flex items-center justify-center">
         <svg
@@ -91,14 +91,14 @@ export const ComplianceScore: React.FC<ComplianceScoreProps> = ({ score, size = 
         </div>
       </div>
 
-      <div className="flex flex-col justify-center space-y-1">
-        <span className="text-xs uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400">
+      <div className="flex flex-col justify-center space-y-1 min-w-0 flex-1 overflow-hidden">
+        <span className="text-[11px] sm:text-xs uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400 break-words leading-tight">
           Compliance Score
         </span>
-        <span className={`text-base sm:text-lg font-extrabold ${colorConfig.text}`}>
+        <span className={`text-sm sm:text-base font-extrabold break-words leading-tight ${colorConfig.text}`}>
           {colorConfig.label}
         </span>
-        <p className="text-xs text-slate-600 dark:text-slate-400 leading-snug">
+        <p className="text-[11px] sm:text-xs text-slate-600 dark:text-slate-400 leading-snug break-words">
           {safeScore >= 85
             ? 'Commodity meets Legal Metrology PCR 2011 standard requirements.'
             : 'Statutory violations detected requiring corrective notice.'}
