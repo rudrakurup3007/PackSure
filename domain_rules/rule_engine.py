@@ -111,6 +111,26 @@ def evaluate_rule(rule, evidence, product_context):
     if validation["type"] == "value_and_unit":
         unit = field_evidence.get("unit")
         unit_status = field_evidence.get("unit_status")
+
+        # unit_status == "ocr_corrected" means the extractor RECONSTRUCTED
+        # the unit from a suspected OCR misread rather than actually reading
+        # it off the pack - e.g. "400g" came back from Tesseract as the
+        # single token "4009", and the trailing 9 was reversed to a "g".
+        #
+        # Without this branch that evidence is indistinguishable from a clean
+        # read: `unit` is populated, so it falls straight through to
+        # `unit in validation["unit_in"]` and PASSes. A guessed character
+        # would then silently satisfy a net-quantity declaration, which is
+        # exactly the kind of confident-wrong result the extraction layer's
+        # golden rule ("extract evidence, never guess") exists to prevent.
+        # Checked BEFORE the `unit is None` branch because the correction
+        # populates `unit`, so the None branch never sees these.
+        if unit_status == "ocr_corrected":
+            return {
+                "field": field, "rule_id": rule["rule_id"], "status": "REVIEW",
+                "reason": rule["outputs"]["review"], "evidence": field_evidence, "scored": True,
+            }
+
         if unit is None:
             if unit_status == "confirmed_absent":
                 return {
@@ -144,6 +164,20 @@ def evaluate_rule(rule, evidence, product_context):
         valid = date_role == validation["expected_role"]
 
     # "presence" type: value already confirmed present above -> valid stays True
+
+    # Cross-cutting evidence flag, checked for every validation type.
+    # origin_conflict is set by the extractor when a pack declares an origin
+    # AND names an importer that disagrees with it (e.g. "Made in India" next
+    # to "Imported by ABC Pvt Ltd"). The extractor resolves is_imported in
+    # favour of the explicit origin declaration - the right call, since that
+    # is the declaration that actually states origin - but the disagreement
+    # is a genuine anomaly on the pack and a human should see it rather than
+    # have it resolved silently.
+    if valid and field_evidence.get("origin_conflict"):
+        return {
+            "field": field, "rule_id": rule["rule_id"], "status": "REVIEW",
+            "reason": rule["outputs"]["review"], "evidence": field_evidence, "scored": True,
+        }
 
     status = "PASS" if valid else "FAIL"
     return {
