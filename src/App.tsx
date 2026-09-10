@@ -54,7 +54,7 @@ export default function App() {
   const [isNavigating, setIsNavigating] = useState<boolean>(false);
   const [uploadedImages, setUploadedImages] = useState<UploadedImageFile[]>([]);
   const [scanResult, setScanResult] = useState<ScanResult | null>(null);
-  const [isMockMode, setIsMockMode] = useState<boolean>(true);
+  const [isMockMode, setIsMockMode] = useState<boolean>(() => isMockModeConfigured());
   const [errorMessage, setErrorMessage] = useState<{
     title: string;
     message: string;

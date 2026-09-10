@@ -49,6 +49,8 @@ CORS_ORIGINS = [
     "http://127.0.0.1:3000",
     "http://localhost:5173",
     "http://127.0.0.1:5173",
+    "https://packsure-beta.vercel.app",
+    "https://packsure.vercel.app",
     *_extra_origins,
 ]
 
@@ -63,6 +65,7 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=CORS_ORIGINS,
+    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

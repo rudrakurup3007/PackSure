@@ -6,38 +6,35 @@ import { DEFAULT_MOCK_SCAN_RESULT } from '../mock/scanResult';
  */
 export function getApiBaseUrl(): string {
   // Support both Next.js style and Vite style environment variables
-  const metaEnv = typeof import.meta !== 'undefined' ? (import.meta as { env?: Record<string, string> }).env : undefined;
   const envUrl =
+    (import.meta.env?.VITE_API_BASE_URL as string | undefined) ||
+    (import.meta.env?.NEXT_PUBLIC_API_BASE_URL as string | undefined) ||
     (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_API_BASE_URL) ||
-    (typeof process !== 'undefined' && process.env?.VITE_API_BASE_URL) ||
-    metaEnv?.NEXT_PUBLIC_API_BASE_URL ||
-    metaEnv?.VITE_API_BASE_URL;
+    (typeof process !== 'undefined' && process.env?.VITE_API_BASE_URL);
 
   if (envUrl && typeof envUrl === 'string' && envUrl.trim() !== '') {
     return envUrl.replace(/\/+$/, '');
   }
 
-  // Sensible default for full-stack / container environments
-  return '';
+  // Production backend fallback on Render
+  return 'https://packsure-backend-wlri.onrender.com';
 }
 
 /**
  * Checks whether mock mode is enabled via environment variable
  */
 export function isMockModeConfigured(): boolean {
-  const metaEnv = typeof import.meta !== 'undefined' ? (import.meta as { env?: Record<string, string> }).env : undefined;
   const envMock =
-    (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_USE_MOCK_API) ||
-    (typeof process !== 'undefined' && process.env?.VITE_USE_MOCK_API) ||
-    metaEnv?.NEXT_PUBLIC_USE_MOCK_API ||
-    metaEnv?.VITE_USE_MOCK_API;
+    (import.meta.env?.VITE_USE_MOCK_API as string | boolean | undefined) ??
+    (import.meta.env?.NEXT_PUBLIC_USE_MOCK_API as string | boolean | undefined) ??
+    (typeof process !== 'undefined' ? process.env?.NEXT_PUBLIC_USE_MOCK_API ?? process.env?.VITE_USE_MOCK_API : undefined);
 
   if (envMock !== undefined && envMock !== null && envMock !== '') {
     return String(envMock).toLowerCase() === 'true' || String(envMock) === '1';
   }
 
-  // By default during frontend development prior to backend availability, default to mock mode
-  return true;
+  // Default to live backend inspection so real images are processed
+  return false;
 }
 
 export class ApiError extends Error {
