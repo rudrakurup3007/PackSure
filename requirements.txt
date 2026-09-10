@@ -26,6 +26,18 @@ python-dateutil>=2.8
 # Fuzzy matching for OCR-corrupted labels, units and commodity descriptors.
 rapidfuzz>=3.0
 
+# --- Server ---
+# FastAPI file-upload support (required for /scan endpoint)
+python-multipart>=0.0.9
+# ASGI server
+uvicorn[standard]>=0.29
+# Image validation in main.py
+pillow>=10.0
+# FastAPI itself
+fastapi>=0.110
+# Pydantic (FastAPI uses this for schemas)
+pydantic>=2.0
+
 # --- Tests ---
 # The 78 smoke tests need neither PaddleOCR nor image files; they build
 # OCRLine objects directly and run in well under a second.
