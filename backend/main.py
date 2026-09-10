@@ -5,6 +5,7 @@ frontend /scan and /health contracts. No OCR, extraction, or rule logic lives he
 
 from __future__ import annotations
 
+import os
 import tempfile
 import uuid
 from io import BytesIO
@@ -38,12 +39,17 @@ ALLOWED_CONTENT_TYPES = {
     "image/webp",
 }
 
-# Local Vite frontend (package.json: vite --port=3000)
+# CORS origins: extend via CORS_ORIGINS env var (comma-separated) for production.
+# e.g. CORS_ORIGINS="https://your-app.vercel.app,https://your-app2.vercel.app"
+_extra_origins = [
+    o.strip() for o in os.environ.get("CORS_ORIGINS", "").split(",") if o.strip()
+]
 CORS_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
     "http://localhost:5173",
     "http://127.0.0.1:5173",
+    *_extra_origins,
 ]
 
 _PDP_FIELD = "principal_display_panel_colocation"
