@@ -33,7 +33,7 @@ export function isMockModeConfigured(): boolean {
     return String(envMock).toLowerCase() === 'true' || String(envMock) === '1';
   }
 
-  // Default to live backend inspection so real images are processed
+  // Strictly default to false so real OCR backend inspection is executed
   return false;
 }
 

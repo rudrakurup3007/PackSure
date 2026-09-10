@@ -39,7 +39,7 @@ export const Header: React.FC<HeaderProps> = ({
   onNavigateReport,
   currentView = 'dashboard',
   isScanning = false,
-  isMockMode = true,
+  isMockMode = false,
   onToggleMockMode,
 }) => {
   const { isDark, toggleTheme } = useTheme();
