@@ -15,14 +15,18 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt && \
-    pip install --no-cache-dir uvicorn[standard] fastapi pillow
+    pip install --no-cache-dir \
+        "python-multipart>=0.0.9" \
+        "uvicorn[standard]>=0.29" \
+        "fastapi>=0.110" \
+        "pillow>=10.0" \
+        "pydantic>=2.0"
 
 # Copy source
 COPY backend/ ./backend/
 COPY domain_rules/ ./domain_rules/
 
 # Render injects $PORT at runtime (default 10000).
-# We expose 10000 for documentation; the CMD reads $PORT dynamically.
 EXPOSE 10000
 
 CMD ["sh", "-c", "uvicorn backend.main:app --host 0.0.0.0 --port ${PORT:-10000}"]
